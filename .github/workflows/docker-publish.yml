@@ -85,7 +85,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }} # Apply OCI labels
           cache-from: type=gha # Use GitHub Actions cache for layers
           cache-to: type=gha,mode=max # Save all layers to cache
-          platforms: linux/amd64,linux/arm64 # Build for both x86 and ARM architectures
+          platforms: linux/amd64 # Build for x86 architecture
           # Pass build-time metadata as build args (optional, requires ARG in Dockerfile)
           build-args: |
             BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
