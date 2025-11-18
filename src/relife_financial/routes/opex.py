@@ -1,8 +1,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException
-from relife_service_template.models.opex import OPEXRequest, OPEXResponse
-from relife_service_template.services.opex import calculate_opex
-from relife_service_template.auth.dependencies import get_authenticated_user_without_roles as get_current_user
+from relife_financial.models.opex import OPEXRequest, OPEXResponse
+from relife_financial.services.opex import calculate_opex
+from relife_financial.auth.dependencies import get_authenticated_user_without_roles as get_current_user
 
 router = APIRouter(
     prefix="/financial",

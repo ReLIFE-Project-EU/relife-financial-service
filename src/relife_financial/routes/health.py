@@ -2,7 +2,7 @@ import time
 
 from fastapi import APIRouter
 
-from relife_service_template.config.logging import get_logger
+from relife_financial.config.logging import get_logger
 
 router = APIRouter(tags=["health"])
 

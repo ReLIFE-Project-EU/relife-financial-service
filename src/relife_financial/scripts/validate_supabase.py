@@ -27,7 +27,7 @@ from rich.text import Text
 from supabase import create_client
 from supabase.client import ClientOptions
 
-from relife_service_template.app import app
+from relife_financial.app import app
 
 # Configuration constants
 DEFAULT_HOST = "127.0.0.1"

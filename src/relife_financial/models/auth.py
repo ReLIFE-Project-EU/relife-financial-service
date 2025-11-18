@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from gotrue.types import UserResponse
 from pydantic import BaseModel
 
-from relife_service_template.config.settings import get_settings
+from relife_financial.config.settings import get_settings
 
 
 class AuthenticationMethod(str, Enum):

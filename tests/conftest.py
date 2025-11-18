@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from relife_service_template.config.logging import configure_logging
+from relife_financial.config.logging import configure_logging
 
 # Set test environment variables to avoid validation errors
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
