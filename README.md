@@ -1,12 +1,12 @@
-# ReLIFE Service API Template
+# ReLIFE Financial Service
 
 ## Introduction
 
-This is a Python template for a ReLIFE Service API that integrates with Supabase for database operations and storage, and with Keycloak for authentication and authorisation. It provides a foundation for building ReLIFE Services including Supabase user authentication, Keycloak role-based access control, and file storage capabilities.
+A ReLIFE microservice providing financial indicator calculations (NPV, ROI, IRR, II, OPEX) via REST API. The service integrates with Supabase for database operations and storage, and with Keycloak for authentication and authorization.
 
 ## Technology Stack
 
-- **Python 3+**: Core programming language
+- **Python 3.11+**: Core programming language
 - **FastAPI**: Web framework for building APIs with automatic OpenAPI documentation
 - **Uvicorn**: ASGI server for running the FastAPI application
 - **Pydantic**: Data validation and settings management using Python type annotations
@@ -38,7 +38,7 @@ All configuration is driven by environment variables:
 
 ## Authentication Integration Validation
 
-This template includes a validation script to test authentication integration with remote Supabase and Keycloak instances. This tool helps you verify your configuration and troubleshoot authentication issues.
+The service includes a validation script to test authentication integration with remote Supabase and Keycloak instances. This tool helps you verify your configuration and troubleshoot authentication issues.
 
 ### Usage
 
