@@ -62,7 +62,7 @@ jobs:
           # - Branch pushes: tag with branch name (e.g., main, develop)
           # - PR: tag with pr-<number> (e.g., pr-123)
           # - Version tags (v1.2.3): creates 1.2.3, 1.2, 1
-          # - Commit SHA: <branch>-<sha> (e.g., main-abc1234)
+          # - Commit SHA: sha-<sha> (e.g., sha-abc1234)
           # - Latest: only for default branch (main)
           tags: |
             type=ref,event=branch
@@ -70,7 +70,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix={{branch}}-
+            type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
       # Step 5: Build Docker image and push to registry
