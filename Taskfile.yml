@@ -1,0 +1,30 @@
+version: "3"
+
+vars: {}
+
+env: {}
+
+dotenv: []
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list
+
+  dev:
+    desc: Run the FastAPI development server with hot reload enabled
+    cmds:
+      - uv run fastapi run --reload {{.ROOT_DIR}}/src/relife_financial/app.py
+
+  test:
+    desc: Run all tests using pytest with verbose output
+    cmds:
+      - uv run pytest -v
+
+  build:
+    desc: Build the Docker image for the service (default image name is relife-financial)
+    vars:
+      IMAGE_NAME: '{{.IMAGE_NAME | default "relife-financial"}}'
+    cmds:
+      - docker build -t {{.IMAGE_NAME}} .

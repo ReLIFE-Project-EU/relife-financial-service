@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from relife_service_template.app import app
+from relife_financial.app import app
 
 client = TestClient(app)
 

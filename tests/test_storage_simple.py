@@ -2,12 +2,12 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from relife_service_template.app import app
+from relife_financial.app import app
 
 client = TestClient(app)
 
 
-@patch("relife_service_template.config.settings.get_settings")
+@patch("relife_financial.config.settings.get_settings")
 def test_storage_endpoints_require_authentication(mock_get_settings, mock_settings):
     """Test that storage endpoints require authentication."""
 

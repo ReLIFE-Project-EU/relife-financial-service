@@ -1,0 +1,93 @@
+# GitHub Actions workflow to build and push Docker images to GitHub Container Registry (GHCR)
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main # Trigger on pushes to main branch
+    tags:
+      - "v*" # Trigger on version tags (e.g., v1.0.0, v2.1.3)
+  pull_request:
+    branches:
+      - main # Trigger on PRs to main (builds but doesn't push)
+  workflow_dispatch: # Allow manual triggering from GitHub UI
+
+env:
+  # Registry to push images to (ghcr.io = GitHub Container Registry)
+  # Alternative: docker.io for Docker Hub
+  REGISTRY: ghcr.io
+
+  # Image name - defaults to repository name (e.g., username/relife-financial-service)
+  # Override with a custom name if needed: IMAGE_NAME: my-custom-name
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    # Minimal permissions for security best practices
+    permissions:
+      contents: read # Read repository contents
+      packages: write # Push to GitHub Container Registry
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Docker Buildx for advanced build features
+      # Enables multi-platform builds and build caching
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 3: Authenticate with GitHub Container Registry
+      # Skipped for PRs (only builds, doesn't push)
+      # Uses built-in GITHUB_TOKEN - no manual secrets needed
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }} # GitHub username of the person who triggered the workflow
+          password: ${{ secrets.GITHUB_TOKEN }} # Auto-generated token with write:packages scope
+
+      # Step 4: Generate Docker image tags and labels based on Git metadata
+      # Creates semantic tags for better image organization
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Tag strategy:
+          # - Branch pushes: tag with branch name (e.g., main, develop)
+          # - PR: tag with pr-<number> (e.g., pr-123)
+          # - Version tags (v1.2.3): creates 1.2.3, 1.2, 1
+          # - Commit SHA: sha-<sha> (e.g., sha-abc1234)
+          # - Latest: only for default branch (main)
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Step 5: Build Docker image and push to registry
+      # Uses layer caching for faster builds
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v5
+        with:
+          context: . # Build context is the repository root
+          push: ${{ github.event_name != 'pull_request' }} # Only push on main/tags, not PRs
+          tags: ${{ steps.meta.outputs.tags }} # Apply all generated tags
+          labels: ${{ steps.meta.outputs.labels }} # Apply OCI labels
+          cache-from: type=gha # Use GitHub Actions cache for layers
+          cache-to: type=gha,mode=max # Save all layers to cache
+          platforms: linux/amd64 # Build for x86 architecture
+          # Pass build-time metadata as build args (optional, requires ARG in Dockerfile)
+          build-args: |
+            BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}

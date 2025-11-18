@@ -5,13 +5,13 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from supabase import AsyncClient, create_async_client
 from supabase.client import ClientOptions
 
-from relife_service_template.auth.keycloak import (
+from relife_financial.auth.keycloak import (
     fetch_user_roles,
     validate_keycloak_jwt,
 )
-from relife_service_template.config.logging import get_logger
-from relife_service_template.config.settings import SettingsDep
-from relife_service_template.models.auth import (
+from relife_financial.config.logging import get_logger
+from relife_financial.config.settings import SettingsDep
+from relife_financial.models.auth import (
     AuthenticatedUser,
     AuthenticationMethod,
     UniversalUser,

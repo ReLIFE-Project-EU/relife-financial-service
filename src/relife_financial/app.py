@@ -2,14 +2,14 @@ from importlib.metadata import version
 
 from fastapi import FastAPI
 
-from relife_service_template.config.logging import configure_logging
-from relife_service_template.routes import auth, examples, health
+from relife_financial.config.logging import configure_logging
+from relife_financial.routes import auth, examples, health
 
-from relife_service_template.routes.npv import router as npv_router
-from relife_service_template.routes.ii import router as ii_router
-from relife_service_template.routes.opex import router as opex_router
-from relife_service_template.routes.roi import router as roi_router
-from relife_service_template.routes.irr import router as irr_router
+from relife_financial.routes.npv import router as npv_router
+from relife_financial.routes.ii import router as ii_router
+from relife_financial.routes.opex import router as opex_router
+from relife_financial.routes.roi import router as roi_router
+from relife_financial.routes.irr import router as irr_router
 
 # Dynamically determine the package name
 package_name = __name__.split(".")[0]

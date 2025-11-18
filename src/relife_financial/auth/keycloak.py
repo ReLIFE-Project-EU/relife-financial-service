@@ -4,8 +4,8 @@ import httpx
 import jwt
 from fastapi import HTTPException, status
 
-from relife_service_template.config.logging import get_logger
-from relife_service_template.models.auth import (
+from relife_financial.config.logging import get_logger
+from relife_financial.models.auth import (
     AuthenticatedUser,
     AuthenticationMethod,
     KeycloakRole,

@@ -4,11 +4,11 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from relife_service_template.auth.dependencies import (
+from relife_financial.auth.dependencies import (
     _get_authenticated_user,
     get_user_client,
 )
-from relife_service_template.models.auth import (
+from relife_financial.models.auth import (
     AuthenticatedUser,
     AuthenticationMethod,
     UniversalUser,
@@ -17,7 +17,7 @@ from relife_service_template.models.auth import (
 
 
 @pytest.mark.asyncio
-@patch("relife_service_template.auth.dependencies._authenticate_with_supabase")
+@patch("relife_financial.auth.dependencies._authenticate_with_supabase")
 async def test_valid_supabase_token_authentication(mock_supabase_auth, mock_settings):
     """Test successful authentication using valid Supabase token."""
 
@@ -50,8 +50,8 @@ async def test_valid_supabase_token_authentication(mock_supabase_auth, mock_sett
 
 
 @pytest.mark.asyncio
-@patch("relife_service_template.auth.dependencies._authenticate_with_keycloak")
-@patch("relife_service_template.auth.dependencies._authenticate_with_supabase")
+@patch("relife_financial.auth.dependencies._authenticate_with_keycloak")
+@patch("relife_financial.auth.dependencies._authenticate_with_supabase")
 async def test_valid_keycloak_token_authentication(
     mock_supabase_auth, mock_keycloak_auth, mock_settings
 ):
@@ -92,8 +92,8 @@ async def test_valid_keycloak_token_authentication(
 
 
 @pytest.mark.asyncio
-@patch("relife_service_template.auth.dependencies._authenticate_with_keycloak")
-@patch("relife_service_template.auth.dependencies._authenticate_with_supabase")
+@patch("relife_financial.auth.dependencies._authenticate_with_keycloak")
+@patch("relife_financial.auth.dependencies._authenticate_with_supabase")
 async def test_invalid_token_handling(
     mock_supabase_auth, mock_keycloak_auth, mock_settings
 ):
@@ -116,8 +116,8 @@ async def test_invalid_token_handling(
 
 
 @pytest.mark.asyncio
-@patch("relife_service_template.auth.dependencies._fetch_keycloak_roles")
-@patch("relife_service_template.auth.dependencies._authenticate_with_supabase")
+@patch("relife_financial.auth.dependencies._fetch_keycloak_roles")
+@patch("relife_financial.auth.dependencies._authenticate_with_supabase")
 async def test_fallback_authentication_flow_with_roles(
     mock_supabase_auth, mock_fetch_roles, mock_settings
 ):

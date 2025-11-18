@@ -1,9 +1,9 @@
 # File: routes/npv.py
 
 from fastapi import APIRouter, Depends, HTTPException
-from relife_service_template.models.npv import NPVRequest, NPVResponse
-from relife_service_template.services.npv import calculate_npv
-from relife_service_template.auth.dependencies import get_authenticated_user_without_roles as get_current_user
+from relife_financial.models.npv import NPVRequest, NPVResponse
+from relife_financial.services.npv import calculate_npv
+from relife_financial.auth.dependencies import get_authenticated_user_without_roles as get_current_user
 
 router = APIRouter(
     prefix="/financial",
