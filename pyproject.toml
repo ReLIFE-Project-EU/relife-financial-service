@@ -6,15 +6,15 @@ readme = "README.md"
 authors = [{ name = "ReLIFE Developer", email = "developers@re-life.eu" }]
 requires-python = ">=3.11"
 dependencies = [
-    "cryptography>=45.0.5",
-    "fastapi[standard]>=0.116.1",
-    "httpx>=0.28.1",
-    "pydantic-settings>=2.10.1",
-    "rich>=14.0.0",
-    "supabase>=2.17.0",
-    "uvicorn>=0.35.0",
-    "numpy>=2.3.2",
-    "pandas>=2.3.1"
+    "cryptography==45.0.5",
+    "fastapi[standard]==0.116.1",
+    "httpx==0.28.1",
+    "pydantic-settings==2.10.1",
+    "rich==14.0.0",
+    "supabase==2.17.0",
+    "uvicorn==0.35.0",
+    "numpy==2.3.5",
+    "pandas==2.3.3"
 ]
 
 [project.scripts]
