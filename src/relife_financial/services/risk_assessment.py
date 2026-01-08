@@ -24,7 +24,7 @@ import numpy as np
 import numpy_financial as npf
 
 # Add Indicator Modules to path
-indicator_modules_path = Path(__file__).parent.parent.parent.parent / "Indicator Modules"
+indicator_modules_path = Path(__file__).parent.parent / "Indicator Modules"
 if str(indicator_modules_path) not in sys.path:
     sys.path.insert(0, str(indicator_modules_path))
 
