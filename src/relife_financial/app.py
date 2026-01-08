@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from relife_financial.config.logging import configure_logging
 from relife_financial.routes import auth, examples, health
-from relife_financial.routes import risk_assessment
+from relife_financial.routes import risk_assessment, arv
 
 # Dynamically determine the package name
 package_name = __name__.split(".")[0]
@@ -39,3 +39,6 @@ app.include_router(examples.router)
 
 # Risk Assessment endpoint
 app.include_router(risk_assessment.router)
+
+# After Renovation Value (ARV) endpoint
+app.include_router(arv.router)
