@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from gotrue.types import UserResponse
@@ -46,7 +46,7 @@ class UniversalUser(BaseModel):
 
     id: str
     email: Optional[str] = None
-    user_metadata: Dict[str, str] = {}
+    user_metadata: Dict[str, Any] = {}
     identities: List[UserIdentity] = []
 
     @classmethod
