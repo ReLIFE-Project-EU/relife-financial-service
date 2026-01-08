@@ -4,12 +4,7 @@ from fastapi import FastAPI
 
 from relife_financial.config.logging import configure_logging
 from relife_financial.routes import auth, examples, health
-
-from relife_financial.routes.npv import router as npv_router
-from relife_financial.routes.ii import router as ii_router
-from relife_financial.routes.opex import router as opex_router
-from relife_financial.routes.roi import router as roi_router
-from relife_financial.routes.irr import router as irr_router
+from relife_financial.routes import risk_assessment
 
 # Dynamically determine the package name
 package_name = __name__.split(".")[0]
@@ -42,9 +37,5 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(examples.router)
 
-#Financial service endpoints
-app.include_router(npv_router)
-app.include_router(ii_router)
-app.include_router(opex_router)
-app.include_router(roi_router)
-app.include_router(irr_router)
+# Risk Assessment endpoint
+app.include_router(risk_assessment.router)
