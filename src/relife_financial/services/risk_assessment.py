@@ -133,50 +133,84 @@ def _build_private_output(
     """
     Build output for private users (individual homeowners).
     
-    Focus: Maximum simplicity and intuitiveness
-    - Only median (P50) values
-    - Only the most essential metrics homeowners care about
-    - No percentile distributions or complex statistics
+    Focus: Comprehensive risk assessment with percentile distributions
+    - Percentile distributions (P10-P90) for core financial indicators
+    - Point forecasts for intuitive metrics
+    - Cash flow visualization
     
     Included Metrics:
-        - NPV: Total net profit over project lifetime
-        - PBP: Simple payback period (years to break even)
-        - ROI: Total return on investment as percentage
-        - Monthly Savings: Average monthly financial benefit
-        - Success Rate: Probability of positive return
+        Distributions (P10, P20, P30, P40, P50, P60, P70, P80, P90):
+            - NPV: Total net profit over project lifetime
+            - PBP: Simple payback period (years to break even)
+            - ROI: Total return on investment as percentage
+            - IRR: Internal rate of return
+            - DPP: Discounted payback period
+        
+        Point Forecasts:
+            - Monthly Savings: Average monthly financial benefit
+            - Success Rate: Probability of positive return
     
     Args:
         request: Original request parameters
         results: Raw simulation results from run_simulation()
         
     Returns:
-        RiskAssessmentResponse with only point_forecasts and metadata
+        RiskAssessmentResponse with percentile distributions in point_forecasts and metadata
     """
     import numpy as np
     
     raw_data = results['raw_data']
     
     # ─────────────────────────────────────────────────────────────
-    # Calculate Point Forecasts (Median Values)
+    # Calculate Percentile Distributions for Core Financial Metrics
     # ─────────────────────────────────────────────────────────────
     
+    kpi_distributions = {}
     point_forecasts = {}
     
-    # Core Financial Metrics
+    # Define percentiles to calculate
+    percentiles = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+    
+    # Core Financial Metrics - Return full distributions AND point forecast (P50)
     if "NPV" in request.indicators:
-        point_forecasts["NPV"] = float(np.median(raw_data['npv']))
+        npv_percentiles = np.percentile(raw_data['npv'], percentiles)
+        kpi_distributions["NPV"] = {
+            f"P{p}": float(npv_percentiles[i]) 
+            for i, p in enumerate(percentiles)
+        }
+        point_forecasts["NPV"] = float(npv_percentiles[4])  # P50 is at index 4
     
     if "PBP" in request.indicators:
-        point_forecasts["PBP"] = float(np.median(raw_data['pbp']))
+        pbp_percentiles = np.percentile(raw_data['pbp'], percentiles)
+        kpi_distributions["PBP"] = {
+            f"P{p}": float(pbp_percentiles[i]) 
+            for i, p in enumerate(percentiles)
+        }
+        point_forecasts["PBP"] = float(pbp_percentiles[4])
     
     if "ROI" in request.indicators:
-        point_forecasts["ROI"] = float(np.median(raw_data['roi']))
+        roi_percentiles = np.percentile(raw_data['roi'], percentiles)
+        kpi_distributions["ROI"] = {
+            f"P{p}": float(roi_percentiles[i]) 
+            for i, p in enumerate(percentiles)
+        }
+        point_forecasts["ROI"] = float(roi_percentiles[4])
     
     if "IRR" in request.indicators:
-        point_forecasts["IRR"] = float(np.median(raw_data['irr']))
+        irr_percentiles = np.percentile(raw_data['irr'], percentiles)
+        kpi_distributions["IRR"] = {
+            f"P{p}": float(irr_percentiles[i]) 
+            for i, p in enumerate(percentiles)
+        }
+        point_forecasts["IRR"] = float(irr_percentiles[4])
     
     if "DPP" in request.indicators:
-        point_forecasts["DPP"] = float(np.median(raw_data['dpp']))
+        dpp_percentiles = np.percentile(raw_data['dpp'], percentiles)
+        kpi_distributions["DPP"] = {
+            f"P{p}": float(dpp_percentiles[i]) 
+            for i, p in enumerate(percentiles)
+        }
+        point_forecasts["DPP"] = float(dpp_percentiles[4])
     
     # Additional Intuitive Metrics for Homeowners
     # Average Monthly Savings: (Total savings over lifetime) / (lifetime in months)
@@ -226,24 +260,68 @@ def _build_private_output(
             metadata["loan_rate_percent"] = round(loan_rate * 100, 2)  # Store as percentage for readability (3.5%)
     
     # ─────────────────────────────────────────────────────────────
-    # Generate Cash Flow Visualization (Private users get 1 key chart)
+    # Generate Cash Flow Data for Frontend Visualization
     # ─────────────────────────────────────────────────────────────
     
-    cash_flow_chart = generate_private_cash_flow_chart(
-        capex=request.capex,
-        project_lifetime=request.project_lifetime,
-        annual_energy_savings=request.annual_energy_savings,
-        annual_maintenance_cost=request.annual_maintenance_cost,
-        loan_amount=request.loan_amount,
-        loan_term=request.loan_term,
-        market_distributions=results['market_distributions'],
-        loan_rate=results.get('metadata', {}).get('loan_rate'),
-        return_base64=True
-    )
+    # Calculate cash flow data that frontend will use to render the chart
+    market_dist = results['market_distributions']
     
-    visualizations = {
-        "cash_flow_timeline": cash_flow_chart
+    # Calculate median values from market distributions
+    median_elec_prices = np.exp(market_dist['elec_price']['mu_ln'])
+    median_inflation = market_dist['inflation']['mu']
+    
+    # Annual revenues from energy savings
+    annual_revenues = request.annual_energy_savings * median_elec_prices[:request.project_lifetime]
+    
+    # Annual maintenance costs (inflated over time)
+    annual_opex = np.array([
+        request.annual_maintenance_cost * np.prod([1 + median_inflation[j]/100 for j in range(i+1)]) 
+        for i in range(request.project_lifetime)
+    ])
+    
+    # Calculate loan payments if applicable
+    if request.loan_amount > 0 and request.loan_term > 0:
+        loan_rate = results.get('metadata', {}).get('loan_rate')
+        if loan_rate is None:
+            loan_rate_mu = market_dist.get('loan_rate', {}).get('mu')
+            if loan_rate_mu is not None:
+                loan_rate = float(loan_rate_mu[0]) / 100
+            else:
+                loan_rate = 0.04
+        
+        annual_loan_payment = float(npf.pmt(loan_rate, request.loan_term, -request.loan_amount))
+        annual_loan_payments = np.zeros(request.project_lifetime)
+        annual_loan_payments[:request.loan_term] = annual_loan_payment
+    else:
+        annual_loan_payments = np.zeros(request.project_lifetime)
+    
+    # Total outflows and net cash flow
+    total_annual_outflows = annual_opex + annual_loan_payments
+    annual_net_cf = annual_revenues - total_annual_outflows
+    
+    # Cumulative position for break-even calculation
+    cumulative_position = np.zeros(request.project_lifetime + 1)
+    cumulative_position[0] = -(request.capex - request.loan_amount)
+    for i in range(request.project_lifetime):
+        cumulative_position[i+1] = cumulative_position[i] + annual_net_cf[i]
+    
+    # Find break-even year
+    breakeven_year = int(np.where(cumulative_position >= 0)[0][0]) if any(cumulative_position >= 0) else None
+    
+    # Prepare cash flow data for frontend
+    cash_flow_data = {
+        "years": list(range(0, request.project_lifetime + 1)),
+        "initial_investment": float(request.capex - request.loan_amount),
+        "annual_inflows": [0.0] + [float(x) for x in annual_revenues],  # Year 0 has no inflows
+        "annual_outflows": [float(request.capex - request.loan_amount)] + [float(x) for x in total_annual_outflows],
+        "annual_net_cash_flow": [float(cumulative_position[0])] + [float(x) for x in annual_net_cf],  # Year 0 is negative (outflow)
+        "cumulative_cash_flow": [float(x) for x in cumulative_position],
+        "breakeven_year": breakeven_year,
+        "loan_term": request.loan_term if request.loan_amount > 0 else None
     }
+    
+    # Add cash flow data to metadata for frontend rendering
+    metadata["cash_flow_data"] = cash_flow_data
     
     # ─────────────────────────────────────────────────────────────
     # Return Response
@@ -251,11 +329,8 @@ def _build_private_output(
     
     return RiskAssessmentResponse(
         point_forecasts=point_forecasts,
-        metadata=metadata,
-        key_percentiles=None,
-        probabilities=None,
-        percentiles=None,
-        visualizations=visualizations
+        percentiles=kpi_distributions,
+        metadata=metadata
     )
 
 
