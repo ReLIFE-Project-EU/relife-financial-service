@@ -8,12 +8,11 @@ Endpoints:
     POST /risk-assessment - Run comprehensive Monte Carlo simulation
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, status
 
-from relife_financial.auth.dependencies import (
-    AuthenticatedUserDep,
-    UserClientDep,
-)
+from relife_financial.auth.dependencies import OptionalAuthenticatedUserDep
 from relife_financial.config.logging import get_logger
 from relife_financial.config.settings import SettingsDep
 from relife_financial.models.risk_assessment import (
@@ -30,8 +29,7 @@ logger = get_logger(__name__)
 @router.post("", response_model=RiskAssessmentResponse, status_code=status.HTTP_200_OK)
 async def assess_project_risk(
     request: RiskAssessmentRequest,
-    current_user: AuthenticatedUserDep,
-    supabase: UserClientDep,
+    current_user: OptionalAuthenticatedUserDep,
     settings: SettingsDep,
 ) -> RiskAssessmentResponse:
     """
@@ -46,7 +44,8 @@ async def assess_project_risk(
     - **public**: For institutions - full statistical breakdown
     - **complete**: Everything including visualizations
     
-    **Authentication Required**: Valid JWT token in Authorization header
+    **Authentication**: Optional. If a valid JWT token is provided, user information
+    will be logged for audit purposes.
     
     Parameters
     ----------
@@ -131,10 +130,12 @@ async def assess_project_risk(
     - Visualizations (when included) are base64-encoded PNGs ready for direct display
     """
     
+    user_id = current_user.user_id if current_user else "anonymous"
+    
     try:
         logger.info(
             "Risk assessment requested",
-            user_id=current_user.user_id,
+            user_id=user_id,
             capex=request.capex,
             project_lifetime=request.project_lifetime,
             output_level=request.output_level.value,
@@ -146,7 +147,7 @@ async def assess_project_risk(
         
         logger.info(
             "Risk assessment completed successfully",
-            user_id=current_user.user_id,
+            user_id=user_id,
             output_level=request.output_level.value,
             n_sims=response.metadata.get("n_sims") if response.metadata else None,
         )
@@ -157,7 +158,7 @@ async def assess_project_risk(
         # Invalid input parameters
         logger.warning(
             "Risk assessment validation error",
-            user_id=current_user.user_id,
+            user_id=user_id,
             error=str(e),
         )
         raise HTTPException(
@@ -169,7 +170,7 @@ async def assess_project_risk(
         # Simulation execution error
         logger.error(
             "Risk assessment simulation failed",
-            user_id=current_user.user_id,
+            user_id=user_id,
             error=str(e),
         )
         raise HTTPException(
@@ -181,7 +182,7 @@ async def assess_project_risk(
         # Unexpected error
         logger.error(
             "Risk assessment unexpected error",
-            user_id=current_user.user_id,
+            user_id=user_id,
             error=str(e),
             exc_info=True,
         )
