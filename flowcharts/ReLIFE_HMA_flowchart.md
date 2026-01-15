@@ -309,8 +309,9 @@ for more information refers to  `Guidelines`: <https://eurac-eebgroup.github.io/
 
 ---
 
-Inputs for photovoltaic system and Heat pump will be available soon
+### <h2 style="color:red; margin-bottom:0px; font-weight:bold"><strong>Inputs for photovoltaic system and Heat pump will be available soon</strong></h3> 
 
+---
 
 # Input if archetype is selected:
 - `category` (str): Name of the building typology. "Sigle family house", "Multi family house", "office", etc..
