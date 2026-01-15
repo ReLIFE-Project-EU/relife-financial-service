@@ -46,8 +46,6 @@ Each API team should specify which inputs they need from the user.
 
 ### Forecasting API
 
-**Forecasting Team:** 
-
 **Required Inputs:**
   
 # Building
