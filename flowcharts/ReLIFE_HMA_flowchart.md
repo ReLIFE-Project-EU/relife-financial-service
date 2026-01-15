@@ -309,7 +309,7 @@ for more information refers to  `Guidelines`: <https://eurac-eebgroup.github.io/
 
 ---
 
-### <h2 style="color:red; margin-bottom:0px; font-weight:bold"><strong>Inputs for photovoltaic system and Heat pump will be available soon</strong></h3> 
+### <h2 style="color:#ff2c2c; margin-bottom:0px; font-weight:bold"><strong>Inputs for photovoltaic system and Heat pump will be available soon</strong></h3> 
 
 ---
 
