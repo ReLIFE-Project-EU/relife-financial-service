@@ -20,6 +20,7 @@ Dependencies:
 import sys
 from pathlib import Path
 from typing import Dict, Any, Optional
+import math
 import numpy as np
 import numpy_financial as npf
 
@@ -122,6 +123,27 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
         raise ValueError(f"Unknown output_level: {request.output_level}")
 
 
+def _sanitize_for_json(value: Any) -> Any:
+    """
+    Recursively replace NaN/Inf values with None so FastAPI/Starlette
+    can serialize responses without ValueError: out of range float.
+    """
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return 0.0
+    if isinstance(value, dict):
+        return {k: _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [ _sanitize_for_json(v) for v in value ]
+    return value
+
+
+def _finite_or_zero(val: float) -> float:
+    """Return val if finite, otherwise 0.0."""
+    if isinstance(val, (int, float)) and math.isfinite(val):
+        return float(val)
+    return 0.0
+
+
 # ============================================================================
 # Private Output (Individual Homeowners)
 # ============================================================================
@@ -173,56 +195,56 @@ def _build_private_output(
     
     # Core Financial Metrics - Return full distributions AND point forecast (P50)
     if "NPV" in request.indicators:
-        npv_percentiles = np.percentile(raw_data['npv'], percentiles)
+        npv_percentiles = np.nanpercentile(raw_data['npv'], percentiles)
         kpi_distributions["NPV"] = {
-            f"P{p}": float(npv_percentiles[i]) 
+            f"P{p}": _finite_or_zero(npv_percentiles[i]) 
             for i, p in enumerate(percentiles)
         }
-        point_forecasts["NPV"] = float(npv_percentiles[4])  # P50 is at index 4
+        point_forecasts["NPV"] = _finite_or_zero(npv_percentiles[4])  # P50 is at index 4
     
     if "PBP" in request.indicators:
-        pbp_percentiles = np.percentile(raw_data['pbp'], percentiles)
+        pbp_percentiles = np.nanpercentile(raw_data['pbp'], percentiles)
         kpi_distributions["PBP"] = {
-            f"P{p}": float(pbp_percentiles[i]) 
+            f"P{p}": _finite_or_zero(pbp_percentiles[i]) 
             for i, p in enumerate(percentiles)
         }
-        point_forecasts["PBP"] = float(pbp_percentiles[4])
+        point_forecasts["PBP"] = _finite_or_zero(pbp_percentiles[4])
     
     if "ROI" in request.indicators:
-        roi_percentiles = np.percentile(raw_data['roi'], percentiles)
+        roi_percentiles = np.nanpercentile(raw_data['roi'], percentiles)
         kpi_distributions["ROI"] = {
-            f"P{p}": float(roi_percentiles[i]) 
+            f"P{p}": _finite_or_zero(roi_percentiles[i]) 
             for i, p in enumerate(percentiles)
         }
-        point_forecasts["ROI"] = float(roi_percentiles[4])
+        point_forecasts["ROI"] = _finite_or_zero(roi_percentiles[4])
     
     if "IRR" in request.indicators:
-        irr_percentiles = np.percentile(raw_data['irr'], percentiles)
+        irr_percentiles = np.nanpercentile(raw_data['irr'], percentiles)
         kpi_distributions["IRR"] = {
-            f"P{p}": float(irr_percentiles[i]) 
+            f"P{p}": _finite_or_zero(irr_percentiles[i]) 
             for i, p in enumerate(percentiles)
         }
-        point_forecasts["IRR"] = float(irr_percentiles[4])
+        point_forecasts["IRR"] = _finite_or_zero(irr_percentiles[4])
     
     if "DPP" in request.indicators:
-        dpp_percentiles = np.percentile(raw_data['dpp'], percentiles)
+        dpp_percentiles = np.nanpercentile(raw_data['dpp'], percentiles)
         kpi_distributions["DPP"] = {
-            f"P{p}": float(dpp_percentiles[i]) 
+            f"P{p}": _finite_or_zero(dpp_percentiles[i]) 
             for i, p in enumerate(percentiles)
         }
-        point_forecasts["DPP"] = float(dpp_percentiles[4])
+        point_forecasts["DPP"] = _finite_or_zero(dpp_percentiles[4])
     
     # Additional Intuitive Metrics for Homeowners
     # Average Monthly Savings: (Total savings over lifetime) / (lifetime in months)
-    total_savings_over_lifetime = np.median(raw_data['npv']) + (
+    total_savings_over_lifetime = np.nanmedian(raw_data['npv']) + (
         request.capex if request.capex else 0
     ) - request.loan_amount
     monthly_savings = total_savings_over_lifetime / (request.project_lifetime * 12)
-    point_forecasts["MonthlyAvgSavings"] = round(float(monthly_savings), 2)
+    point_forecasts["MonthlyAvgSavings"] = round(_finite_or_zero(monthly_savings), 2)
     
     # Success Rate: Probability of positive NPV
     success_rate = float(np.mean(raw_data['npv'] > 0))
-    point_forecasts["SuccessRate"] = round(success_rate, 3)
+    point_forecasts["SuccessRate"] = round(_finite_or_zero(success_rate), 3)
     
     # ─────────────────────────────────────────────────────────────
     # Build Metadata
@@ -328,9 +350,9 @@ def _build_private_output(
     # ─────────────────────────────────────────────────────────────
     
     return RiskAssessmentResponse(
-        point_forecasts=point_forecasts,
-        percentiles=kpi_distributions,
-        metadata=metadata
+        point_forecasts=_sanitize_for_json(point_forecasts),
+        percentiles=_sanitize_for_json(kpi_distributions),
+        metadata=_sanitize_for_json(metadata)
     )
 
 
