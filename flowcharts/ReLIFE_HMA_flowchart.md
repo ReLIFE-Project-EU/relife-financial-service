@@ -162,9 +162,9 @@ Hourly normalized profiles for system operation:
 
 
 
-## System
+### System
 
-### Emitter block (room-side heat delivery)
+#### Emitter block (room-side heat delivery)
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -177,7 +177,7 @@ Hourly normalized profiles for system operation:
 | `mixing_valve_delta` | `float` | `2` | °C delta used when mixing valve is active (typical blending margin). |
 | `constant_flow_temp` | `float` (optional) | `42` | Overrides control curve with a constant emitter flow setpoint (°C). *Commented by default*. |
 
-#### Optional custom emitter tables
+##### Optional custom emitter tables
 
 You can override internal presets using one or both of the following:
 
@@ -204,7 +204,7 @@ heat_emission_data = pd.DataFrame({
 
 ---
 
-### Distribution block (piping network & auxiliaries)
+#### Distribution block (piping network & auxiliaries)
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -218,7 +218,7 @@ heat_emission_data = pd.DataFrame({
 
 ---
 
-### Generator block (plant production side)
+#### Generator block (plant production side)
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -229,7 +229,7 @@ heat_emission_data = pd.DataFrame({
 | `fraction_of_auxiliary_power_generator` | `float` | `40` | % of generator auxiliaries credited as internal gains. |
 | `generator_circuit` | `str` | `"independent"` | Hydraulic layout: `"direct"` or `"independent"` (primary/secondary with HX). |
 
-#### Generator flow-temperature control
+##### Generator flow-temperature control
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -256,9 +256,9 @@ The controller interpolates a target flow temperature between `(θext_min_gen, �
 
 ---
 
-## Control strategies (cheat sheet)
+#### Control strategies (cheat sheet)
 
-#### Emitter `flow_temp_control_type`
+##### Emitter `flow_temp_control_type`
 Common patterns (implementation-dependent; typical meanings):
 
 - **Type 1 – Constant setpoint**: use `constant_flow_temp` (°C).  
@@ -268,7 +268,7 @@ Common patterns (implementation-dependent; typical meanings):
 
 > **Note**: Your codebase may define the exact meanings of each "Type N". Ensure the UI/CLI lists allowed values.
 
-#### 5.2 Generator `gen_flow_temp_control_type`
+##### Generator `gen_flow_temp_control_type`
 - **Type A – Based on outdoor temperature**: uses `gen_outdoor_temp_data` (reset curve).  
 - **Type B – Constant**: use `θHW_gen_flw_set` and optionally `θHW_gen_ret_set`.  
 - **Type C – Demand-following**: track emitter request (requires coupling logic and min/max clamps).
@@ -309,25 +309,25 @@ for more information refers to  `Guidelines`: <https://eurac-eebgroup.github.io/
 
 ---
 
-### <h2 style="color:#ff2c2c; margin-bottom:0px; font-weight:bold"><strong>Inputs for photovoltaic system and Heat pump will be available soon</strong></h3> 
+### <h3 style="color:#ff2c2c; margin-bottom:0px; font-weight:bold"><strong>Inputs for photovoltaic system and Heat pump will be available soon</strong></h3> 
 
 ---
 
-# Input if archetype is selected:
+#### Input if archetype is selected:
 - `category` (str): Name of the building typology. "Sigle family house", "Multi family house", "office", etc..
 - `countries`: list of countries to include
 - `names`: list of archetype names to include
 
-# Input for cobenefit:
+#### Input for cobenefit:
 - `energy_source` (str): Name of the energy source. "grid_electricity", "natural_gas", "lpg", "diesel", "biomass", "district_heating", "solar_pv", "wind", "heat_pump_electric"
 - `country`: country to select the emission factors to be used (e.g. "IT", "DE", "FR", etc.)
 - `annual_energy_consumption` (float): annual Energy consumption (kWh) directly coming from simulation of if already available from own data
 
 
-**Optional Inputs:**
+## **Optional Inputs:**
 -   There are no optional parameters, only the possibility of preloading them by using building archetypes from Reliefe Database.
 
-**Data from ReLIFE Database:**
+## **Data from ReLIFE Database:**
 - All inputs defined in point 1 from archetypes database. 
 - `Emission factors`: values of emission factors for each system type and country. Example
 ``` Bash 
