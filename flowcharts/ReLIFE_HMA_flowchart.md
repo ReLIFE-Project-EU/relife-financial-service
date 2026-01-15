@@ -48,7 +48,7 @@ Each API team should specify which inputs they need from the user.
 
 **Required Inputs:**
   
-# Building
+### Building
 | Key | Type | Description |
 |------|------|-------------|
 | `name` | str | Building name or identifier. |
@@ -62,7 +62,7 @@ Each API team should specify which inputs they need from the user.
 | `net_floor_area` | float (m²) | Conditioned floor area. |
 
 
-## <h2 style="color:#df1b12; margin-bottom:0px; font-weight:bold"><strong>Envelope Elements: `"building_surface"`</strong></h2> 
+### <h3 style="color:#df1b12; margin-bottom:0px; font-weight:bold"><strong>Envelope Elements: `"building_surface"`</strong></h3> 
 
 Describes all external and internal surfaces forming the building envelope.
 
@@ -93,7 +93,7 @@ Include window-specific attributes:
 
 ---
 
-## <h2 style="color:#df1b12; margin-bottom:0px; font-weight:bold"><strong>Unit Definitions: `"units"`</strong></h2> 
+### <h3 style="color:#df1b12; margin-bottom:0px; font-weight:bold"><strong>Unit Definitions: `"units"`</strong></h3> 
 
 Defines unit conventions for each physical quantity.
 
@@ -109,28 +109,28 @@ Defines unit conventions for each physical quantity.
 
 ---
 
-## <h2 style="color:#df1b12; margin-bottom:0px; font-weight:bold"><strong>Thermal, System, and Operational Settings: `"building_parameters"`</strong></h2> 
+### <h3 style="color:#df1b12; margin-bottom:0px; font-weight:bold"><strong>Thermal, System, and Operational Settings: `"building_parameters"`</strong></h3> 
 
-### Temperature Setpoints
+#### Temperature Setpoints
 | Key | Description |
 |------|-------------|
 | `heating_setpoint`, `heating_setback` | Comfort and setback temperatures (°C). |
 | `cooling_setpoint`, `cooling_setback` | Cooling comfort and setback (°C). |
 | `units` | `"°C"`. |
 
-### System Capacities
+#### System Capacities
 | Key | Description |
 |------|-------------|
 | `heating_capacity`, `cooling_capacity` | Maximum system capacities (W). |
 | `units` | `"W"`. |
 
-### Airflow Rates
+#### Airflow Rates
 | Key | Description |
 |------|-------------|
 | `infiltration_rate` | Airflow in air changes per hour (ACH). |
 | `units` | `"ACH"`. |
 
-### Internal Gains
+#### Internal Gains
 Each internal source (occupants, appliances, lighting) defines:
 | Key | Description |
 |------|-------------|
@@ -138,18 +138,18 @@ Each internal source (occupants, appliances, lighting) defines:
 | `full_load` | Peak power density (W/m²). |
 | `weekday`, `weekend` | 24-hour normalized (0–1) schedules. |
 
-### Construction
+#### Construction
 | Key | Description |
 |------|-------------|
 | `wall_thickness` | Wall thickness (m). |
 | `thermal_bridges` | Linear thermal bridge coefficient (W/m·K). |
 
-### Climate Parameters
+#### Climate Parameters
 | Key | Description |
 |------|-------------|
 | `coldest_month` | Index of coldest month (1 = Jan, 12 = Dec). |
 
-### HVAC and Ventilation Profiles
+#### HVAC and Ventilation Profiles
 Hourly normalized profiles for system operation:
 
 | Profile | Description |
@@ -162,9 +162,9 @@ Hourly normalized profiles for system operation:
 
 
 
-# System
+## System
 
-## Emitter block (room-side heat delivery)
+### Emitter block (room-side heat delivery)
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -177,7 +177,7 @@ Hourly normalized profiles for system operation:
 | `mixing_valve_delta` | `float` | `2` | °C delta used when mixing valve is active (typical blending margin). |
 | `constant_flow_temp` | `float` (optional) | `42` | Overrides control curve with a constant emitter flow setpoint (°C). *Commented by default*. |
 
-### Optional custom emitter tables
+#### Optional custom emitter tables
 
 You can override internal presets using one or both of the following:
 
@@ -204,7 +204,7 @@ heat_emission_data = pd.DataFrame({
 
 ---
 
-## Distribution block (piping network & auxiliaries)
+### Distribution block (piping network & auxiliaries)
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -218,7 +218,7 @@ heat_emission_data = pd.DataFrame({
 
 ---
 
-## Generator block (plant production side)
+### Generator block (plant production side)
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -229,7 +229,7 @@ heat_emission_data = pd.DataFrame({
 | `fraction_of_auxiliary_power_generator` | `float` | `40` | % of generator auxiliaries credited as internal gains. |
 | `generator_circuit` | `str` | `"independent"` | Hydraulic layout: `"direct"` or `"independent"` (primary/secondary with HX). |
 
-### Generator flow-temperature control
+#### Generator flow-temperature control
 
 | Field | Type | Example | Meaning |
 |---|---|---|---|
@@ -258,7 +258,7 @@ The controller interpolates a target flow temperature between `(θext_min_gen, �
 
 ## Control strategies (cheat sheet)
 
-### Emitter `flow_temp_control_type`
+#### Emitter `flow_temp_control_type`
 Common patterns (implementation-dependent; typical meanings):
 
 - **Type 1 – Constant setpoint**: use `constant_flow_temp` (°C).  
@@ -268,14 +268,14 @@ Common patterns (implementation-dependent; typical meanings):
 
 > **Note**: Your codebase may define the exact meanings of each "Type N". Ensure the UI/CLI lists allowed values.
 
-### 5.2 Generator `gen_flow_temp_control_type`
+#### 5.2 Generator `gen_flow_temp_control_type`
 - **Type A – Based on outdoor temperature**: uses `gen_outdoor_temp_data` (reset curve).  
 - **Type B – Constant**: use `θHW_gen_flw_set` and optionally `θHW_gen_ret_set`.  
 - **Type C – Demand-following**: track emitter request (requires coupling logic and min/max clamps).
 
 ---
 
-## Efficiency model
+### Efficiency model
 
 | Field | Allowed | Notes |
 |---|---|---|
@@ -285,7 +285,7 @@ Backends typically compute **delivered heat**, **electric/primary energy**, and 
 
 ---
 
-## Calculation options
+### Calculation options
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -294,7 +294,7 @@ Backends typically compute **delivered heat**, **electric/primary energy**, and 
 
 ---
 
-## Units & conventions
+### Units & conventions
 
 - Temperatures in **°C**, ΔT in **K** (numerically the same scale).
 - Powers: `kW` for generator/emitter nominal; auxiliaries commonly in **W** (check your backend).
