@@ -335,7 +335,7 @@ def _build_private_output(
 
 
 # ============================================================================
-# Professional Output (Energy Consultants)
+# Professional Output 
 # ============================================================================
 
 def _build_professional_output(
@@ -345,23 +345,205 @@ def _build_professional_output(
     """
     Build output for professional users (energy consultants, advisors).
     
-    Focus: Balanced detail for technical professionals
-    - Point forecasts (P50)
-    - Key percentiles (P10/P50/P90) for risk assessment
-    - Success probabilities
-    - No full percentile breakdown (that's for public)
+    Focus: Detailed analysis for technical professionals
+    - Point forecasts (P50 median values)
+    - Full percentile distributions (P10-P90) for all indicators
+    - Success probability metrics
+    - Chart metadata for distribution graphs
     
-    TODO: Implement professional-level output
+    Includes:
+        - Percentiles for IRR, NPV, PBP, DPP, ROI
+        - Probabilities: NPV > 0, PBP < lifetime, DPP < lifetime
+        - Metadata for generating 5 distribution charts client-side
     
     Args:
         request: Original request parameters
         results: Raw simulation results from run_simulation()
         
     Returns:
-        RiskAssessmentResponse with point_forecasts, key_percentiles, probabilities, metadata
+        RiskAssessmentResponse with point_forecasts, percentiles, probabilities, metadata
     """
-    # TODO: Implement
-    raise NotImplementedError("Professional output not yet implemented")
+    
+    raw_data = results['raw_data']
+    
+    # ─────────────────────────────────────────────────────────────
+    # Build Point Forecasts (P50 Median)
+    # ─────────────────────────────────────────────────────────────
+    
+    point_forecasts = {}
+    
+    if "NPV" in request.indicators:
+        point_forecasts["NPV"] = float(np.median(raw_data['npv']))
+    
+    if "IRR" in request.indicators:
+        point_forecasts["IRR"] = float(np.median(raw_data['irr']))
+    
+    if "ROI" in request.indicators:
+        point_forecasts["ROI"] = float(np.median(raw_data['roi']))
+    
+    if "PBP" in request.indicators:
+        point_forecasts["PBP"] = float(np.median(raw_data['pbp']))
+    
+    if "DPP" in request.indicators:
+        point_forecasts["DPP"] = float(np.median(raw_data['dpp']))
+    
+    # ─────────────────────────────────────────────────────────────
+    # Build Full Percentile Distributions
+    # ─────────────────────────────────────────────────────────────
+    
+    # Percentiles for professional analysis: P10, P20, ..., P90
+    percentiles = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+    indicator_percentiles = {}
+    
+    if "NPV" in request.indicators:
+        npv_vals = np.percentile(raw_data['npv'], percentiles)
+        indicator_percentiles["NPV"] = {
+            f"P{p}": float(npv_vals[i]) 
+            for i, p in enumerate(percentiles)
+        }
+    
+    if "IRR" in request.indicators:
+        irr_vals = np.percentile(raw_data['irr'], percentiles)
+        indicator_percentiles["IRR"] = {
+            f"P{p}": float(irr_vals[i]) 
+            for i, p in enumerate(percentiles)
+        }
+    
+    if "ROI" in request.indicators:
+        roi_vals = np.percentile(raw_data['roi'], percentiles)
+        indicator_percentiles["ROI"] = {
+            f"P{p}": float(roi_vals[i]) 
+            for i, p in enumerate(percentiles)
+        }
+    
+    if "PBP" in request.indicators:
+        pbp_vals = np.percentile(raw_data['pbp'], percentiles)
+        indicator_percentiles["PBP"] = {
+            f"P{p}": float(pbp_vals[i]) 
+            for i, p in enumerate(percentiles)
+        }
+    
+    if "DPP" in request.indicators:
+        dpp_vals = np.percentile(raw_data['dpp'], percentiles)
+        indicator_percentiles["DPP"] = {
+            f"P{p}": float(dpp_vals[i]) 
+            for i, p in enumerate(percentiles)
+        }
+    
+    # ─────────────────────────────────────────────────────────────
+    # Calculate Success Probabilities
+    # ─────────────────────────────────────────────────────────────
+    
+    probabilities = {}
+    
+    # Probability of positive NPV
+    if "NPV" in request.indicators:
+        prob_npv_positive = float(np.mean(raw_data['npv'] > 0))
+        probabilities["Pr(NPV > 0)"] = round(prob_npv_positive, 4)
+    
+    # Probability that simple payback occurs within project lifetime
+    if "PBP" in request.indicators:
+        prob_pbp_within_lifetime = float(
+            np.mean(raw_data['pbp'] < request.project_lifetime)
+        )
+        probabilities[f"Pr(PBP < {request.project_lifetime}y)"] = round(
+            prob_pbp_within_lifetime, 4
+        )
+    
+    # Probability that discounted payback occurs within project lifetime
+    if "DPP" in request.indicators:
+        prob_dpp_within_lifetime = float(
+            np.mean(raw_data['dpp'] < request.project_lifetime)
+        )
+        probabilities[f"Pr(DPP < {request.project_lifetime}y)"] = round(
+            prob_dpp_within_lifetime, 4
+        )
+    
+    # ─────────────────────────────────────────────────────────────
+    # Build Chart Metadata for Frontend Visualization
+    # ─────────────────────────────────────────────────────────────
+    
+    # For each indicator, provide histogram bins for client-side rendering
+    chart_metadata = {}
+    
+    for indicator in request.indicators:
+        indicator_key = indicator.upper()
+        data_array = raw_data[indicator.lower()]
+        
+        # Calculate histogram bins (30 bins for smooth distribution)
+        hist, bin_edges = np.histogram(data_array, bins=30, density=False)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        
+        # Get P10/P50/P90 for vertical lines on chart
+        p10, p50, p90 = np.percentile(data_array, [10, 50, 90])
+        
+        # Calculate statistics
+        mean_val = float(np.mean(data_array))
+        std_val = float(np.std(data_array))
+        
+        chart_metadata[indicator_key] = {
+            "bins": {
+                "centers": [float(x) for x in bin_centers],
+                "counts": [int(x) for x in hist],
+                "edges": [float(x) for x in bin_edges]
+            },
+            "statistics": {
+                "mean": round(mean_val, 4),
+                "std": round(std_val, 4),
+                "P10": round(float(p10), 4),
+                "P50": round(float(p50), 4),
+                "P90": round(float(p90), 4)
+            },
+            "chart_config": {
+                "xlabel": _get_indicator_label(indicator_key),
+                "ylabel": "Frequency (Number of Scenarios)",
+                "title": f"{indicator_key} Distribution ({results['metadata']['n_sims']:,} Simulations)"
+            }
+        }
+    
+    # ─────────────────────────────────────────────────────────────
+    # Build Metadata
+    # ─────────────────────────────────────────────────────────────
+    
+    metadata = {
+        "n_sims": results['metadata']['n_sims'],
+        "project_lifetime": request.project_lifetime,
+        "capex": request.capex,
+        "annual_maintenance_cost": request.annual_maintenance_cost,
+        "annual_energy_savings": request.annual_energy_savings,
+        "loan_amount": request.loan_amount,
+        "loan_term": request.loan_term,
+        "output_level": request.output_level.value,
+        "indicators_requested": request.indicators,
+        "chart_metadata": chart_metadata  # Metadata for generating distribution charts
+    }
+    
+    # Add discount rate used in simulation
+    disc_rate = results.get('metadata', {}).get('disc_target', 0.06)
+    metadata["discount_rate"] = round(float(disc_rate), 4)
+    
+    # ─────────────────────────────────────────────────────────────
+    # Return Response
+    # ─────────────────────────────────────────────────────────────
+    
+    return RiskAssessmentResponse(
+        point_forecasts=point_forecasts,
+        percentiles=indicator_percentiles,
+        probabilities=probabilities,
+        metadata=metadata
+    )
+
+
+def _get_indicator_label(indicator: str) -> str:
+    """Get human-readable label for indicator."""
+    labels = {
+        "NPV": "Net Present Value (€)",
+        "IRR": "Internal Rate of Return (%)",
+        "ROI": "Return on Investment (%)",
+        "PBP": "Payback Period (years)",
+        "DPP": "Discounted Payback Period (years)"
+    }
+    return labels.get(indicator, indicator)
 
 
 # ============================================================================

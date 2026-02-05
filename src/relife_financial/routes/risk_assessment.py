@@ -67,9 +67,8 @@ async def assess_project_risk(
         Financial risk assessment results with fields populated based on output_level:
         - point_forecasts: Median values (all levels)
         - metadata: Simulation parameters (all levels)
-        - key_percentiles: P10/P50/P90 (professional+)
+        - percentiles: P10-P90 distributions (professional), P5-P95 (public+)
         - probabilities: Success rates (professional+)
-        - percentiles: Full distribution (public+)
         - visualizations: Charts as base64 (complete only, private gets cash flow)
     
     Raises

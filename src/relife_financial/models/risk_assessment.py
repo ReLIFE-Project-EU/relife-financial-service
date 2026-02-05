@@ -218,18 +218,18 @@ class RiskAssessmentResponse(BaseModel):
     Structure varies based on output_level set by frontend tool:
     
     private (homeowners):
-        - point_forecasts (P50 values)
-        - metadata
+        - point_forecasts (P50 values + intuitive metrics)
+        - percentiles (P10-P90 distributions for KPIs)
+        - metadata (includes cash_flow_data for frontend chart rendering)
     
     professional (consultants):
-        - point_forecasts
-        - key_percentiles (P10/P50/P90)
-        - probabilities (success metrics)
-        - metadata
+        - point_forecasts (P50 median values)
+        - percentiles (P10-P90 distributions for all 5 indicators)
+        - probabilities (NPV > 0, PBP < lifetime, DPP < lifetime)
+        - metadata (includes chart_metadata for distribution graphs)
     
     public (institutions):
         - point_forecasts
-        - key_percentiles
         - percentiles (full P5-P95 breakdown)
         - probabilities
         - metadata
@@ -241,8 +241,7 @@ class RiskAssessmentResponse(BaseModel):
     Attributes:
         point_forecasts: Median (P50) value for each requested indicator
         metadata: Simulation parameters and settings used
-        key_percentiles: P10/P50/P90 for each indicator (professional+)
-        percentiles: Full percentile breakdown P5-P95 (public+)
+        percentiles: Percentile distributions (P10-P90 for professional, P5-P95 for public)
         probabilities: Success probability metrics (professional+)
         visualizations: Base64-encoded chart images (complete only)
     """
@@ -271,22 +270,32 @@ class RiskAssessmentResponse(BaseModel):
     # ─────────────────────────────────────────────────────────────
     # Professional and Above
     # ─────────────────────────────────────────────────────────────
-    key_percentiles: Optional[Dict[str, Dict[str, float]]] = Field(
+    
+    percentiles: Optional[Dict[str, Dict[str, float]]] = Field(
         default=None,
-        description="P10, P50, P90 for each indicator. Included in 'professional' and above.",
+        description=(
+            "Percentile distributions for each indicator. "
+            "Professional: P10-P90 (9 percentiles). "
+            "Public: P5-P95 (full breakdown). "
+            "Used for distribution analysis and chart rendering."
+        ),
         examples=[{
-            "IRR": {"P10": 0.031, "P50": 0.057, "P90": 0.089},
-            "NPV": {"P10": 2100.0, "P50": 5432.1, "P90": 9800.0}
+            "IRR": {"P10": 0.031, "P20": 0.040, "P30": 0.046, "P40": 0.052, "P50": 0.057, 
+                    "P60": 0.063, "P70": 0.070, "P80": 0.079, "P90": 0.089},
+            "NPV": {"P10": 2100.0, "P20": 3200.0, "P50": 5432.1, "P90": 9800.0}
         }]
     )
     
     probabilities: Optional[Dict[str, float]] = Field(
         default=None,
-        description="Success probability metrics. Included in 'professional' and above.",
+        description=(
+            "Success probability metrics. Included in 'professional' and above. "
+            "Keys: 'Pr(NPV > 0)', 'Pr(PBP < Ny)', 'Pr(DPP < Ny)' where N is project lifetime."
+        ),
         examples=[{
-            "Pr(NPV > 0)": 0.843,
-            "Pr(PBP < 20y)": 0.912,
-            "Pr(DPP < 20y)": 0.756
+            "Pr(NPV > 0)": 0.8435,
+            "Pr(PBP < 20y)": 0.9124,
+            "Pr(DPP < 20y)": 0.7563
         }]
     )
     
@@ -332,19 +341,31 @@ class RiskAssessmentResponse(BaseModel):
                     "point_forecasts": {
                         "IRR": 0.057,
                         "NPV": 5432.1,
-                        "PBP": 8.3
+                        "PBP": 8.3,
+                        "DPP": 10.1,
+                        "ROI": 15.2
                     },
-                    "key_percentiles": {
-                        "IRR": {"P10": 0.031, "P50": 0.057, "P90": 0.089},
-                        "NPV": {"P10": 2100.0, "P50": 5432.1, "P90": 9800.0}
+                    "percentiles": {
+                        "IRR": {"P10": 0.031, "P20": 0.040, "P30": 0.046, "P40": 0.052, 
+                                "P50": 0.057, "P60": 0.063, "P70": 0.070, "P80": 0.079, "P90": 0.089},
+                        "NPV": {"P10": 2100.0, "P20": 3200.0, "P30": 4100.0, "P40": 4800.0,
+                                "P50": 5432.1, "P60": 6100.0, "P70": 6900.0, "P80": 7800.0, "P90": 9800.0}
                     },
                     "probabilities": {
-                        "Pr(NPV > 0)": 0.843,
-                        "Pr(PBP < 20y)": 0.912
+                        "Pr(NPV > 0)": 0.8435,
+                        "Pr(PBP < 20y)": 0.9124,
+                        "Pr(DPP < 20y)": 0.7563
                     },
                     "metadata": {
                         "n_sims": 10000,
-                        "project_lifetime": 20
+                        "project_lifetime": 20,
+                        "chart_metadata": {
+                            "NPV": {
+                                "bins": {"centers": [...], "counts": [...], "edges": [...]},
+                                "statistics": {"mean": 5500.0, "std": 2300.0, "P10": 2100.0, "P50": 5432.1, "P90": 9800.0},
+                                "chart_config": {"xlabel": "Net Present Value (€)", "ylabel": "Frequency (Number of Scenarios)", "title": "NPV Distribution (10,000 Simulations)"}
+                            }
+                        }
                     }
                 }
             ]
