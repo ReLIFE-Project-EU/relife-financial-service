@@ -30,9 +30,10 @@ FROM python:3.11-slim AS runtime
 # Set working directory for runtime
 WORKDIR /app
 
-# Install minimal runtime dependencies (curl for health checks)
+# Install minimal runtime dependencies (curl for health checks, libgomp1 for LightGBM)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built wheel from builder stage and install it

@@ -8,12 +8,11 @@ Endpoints:
     POST /arv - Predict property value after renovation
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, status
 
-from relife_financial.auth.dependencies import (
-    AuthenticatedUserDep,
-    UserClientDep,
-)
+from relife_financial.auth.dependencies import OptionalAuthenticatedUserDep
 from relife_financial.config.logging import get_logger
 from relife_financial.config.settings import SettingsDep
 from relife_financial.models.arv import (
@@ -30,8 +29,7 @@ logger = get_logger(__name__)
 @router.post("", response_model=ARVResponse, status_code=status.HTTP_200_OK)
 async def calculate_arv(
     request: ARVRequest,
-    current_user: AuthenticatedUserDep,
-    supabase: UserClientDep,
+    current_user: OptionalAuthenticatedUserDep,
     settings: SettingsDep,
 ) -> ARVResponse:
     """
@@ -45,7 +43,8 @@ async def calculate_arv(
     The energy_class input should be the AFTER renovation EPC label (obtained from
     the energy analysis API).
     
-    **Authentication Required**: Valid JWT token in Authorization header
+    **Authentication**: Optional. If a valid JWT token is provided, user information
+    will be logged for audit purposes.
     
     Parameters
     ----------
@@ -129,10 +128,12 @@ async def calculate_arv(
     - For before/after comparison: call endpoint twice with different energy_class values
     """
     
+    user_id = current_user.user_id if current_user else "anonymous"
+    
     logger.info(
-        f"ARV prediction requested by user {current_user.sub}",
+        f"ARV prediction requested by user {user_id}",
         extra={
-            "user_id": current_user.sub,
+            "user_id": user_id,
             "floor_area": request.floor_area,
             "energy_class": request.energy_class.value,
             "property_type": request.property_type.value,
@@ -143,9 +144,9 @@ async def calculate_arv(
         result = await predict_arv(request)
         
         logger.info(
-            f"ARV prediction successful for user {current_user.sub}",
+            f"ARV prediction successful for user {user_id}",
             extra={
-                "user_id": current_user.sub,
+                "user_id": user_id,
                 "price_per_sqm": result.price_per_sqm,
                 "total_price": result.total_price,
             }
@@ -156,7 +157,7 @@ async def calculate_arv(
     except FileNotFoundError as e:
         logger.error(
             f"Model file not found: {e}",
-            extra={"user_id": current_user.sub}
+            extra={"user_id": user_id}
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -166,7 +167,7 @@ async def calculate_arv(
     except ValueError as e:
         logger.warning(
             f"Invalid input for ARV prediction: {e}",
-            extra={"user_id": current_user.sub}
+            extra={"user_id": user_id}
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -176,7 +177,7 @@ async def calculate_arv(
     except RuntimeError as e:
         logger.error(
             f"ARV prediction failed: {e}",
-            extra={"user_id": current_user.sub}
+            extra={"user_id": user_id}
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -186,7 +187,7 @@ async def calculate_arv(
     except Exception as e:
         logger.error(
             f"Unexpected error in ARV prediction: {e}",
-            extra={"user_id": current_user.sub},
+            extra={"user_id": user_id},
             exc_info=True
         )
         raise HTTPException(

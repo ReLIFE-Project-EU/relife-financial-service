@@ -35,12 +35,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Docker Buildx for advanced build features
+      # Step 2: Set up QEMU for cross-platform emulation
+      # Required for building ARM64 images on x86 runners
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Step 3: Set up Docker Buildx for advanced build features
       # Enables multi-platform builds and build caching
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Step 3: Authenticate with GitHub Container Registry
+      # Step 4: Authenticate with GitHub Container Registry
       # Skipped for PRs (only builds, doesn't push)
       # Uses built-in GITHUB_TOKEN - no manual secrets needed
       - name: Log into registry ${{ env.REGISTRY }}
@@ -51,7 +56,7 @@ jobs:
           username: ${{ github.actor }} # GitHub username of the person who triggered the workflow
           password: ${{ secrets.GITHUB_TOKEN }} # Auto-generated token with write:packages scope
 
-      # Step 4: Generate Docker image tags and labels based on Git metadata
+      # Step 5: Generate Docker image tags and labels based on Git metadata
       # Creates semantic tags for better image organization
       - name: Extract Docker metadata
         id: meta
@@ -73,7 +78,7 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # Step 5: Build Docker image and push to registry
+      # Step 6: Build Docker image and push to registry
       # Uses layer caching for faster builds
       - name: Build and push Docker image
         id: build-and-push
@@ -85,7 +90,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }} # Apply OCI labels
           cache-from: type=gha # Use GitHub Actions cache for layers
           cache-to: type=gha,mode=max # Save all layers to cache
-          platforms: linux/amd64 # Build for x86 architecture
+          platforms: linux/amd64,linux/arm64 # Build for x86 and ARM architectures
           # Pass build-time metadata as build args (optional, requires ARG in Dockerfile)
           build-args: |
             BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}

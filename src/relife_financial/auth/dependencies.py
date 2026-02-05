@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -18,6 +18,7 @@ from relife_financial.models.auth import (
 )
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 logger = get_logger(__name__)
 
 
@@ -163,6 +164,25 @@ async def get_authenticated_user_with_roles(
     )
 
 
+async def get_optional_authenticated_user(
+    settings: SettingsDep,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
+) -> Optional[AuthenticatedUser]:
+    """Optionally authenticates user if a token is provided.
+    
+    Returns None if no token is provided, allowing unauthenticated access.
+    If a token is provided but invalid, raises HTTPException 401.
+    """
+
+    if credentials is None:
+        return None
+
+    # Token was provided - authenticate and raise error if invalid
+    return await _get_authenticated_user(
+        settings=settings, credentials=credentials, fetch_roles=False
+    )
+
+
 AuthenticatedUserDep = Annotated[
     AuthenticatedUser, Depends(get_authenticated_user_without_roles)
 ]
@@ -175,6 +195,14 @@ AuthenticatedUserWithRolesDep = Annotated[
 ]
 """Dependency that provides an authenticated user with their Keycloak roles.
 Use this dependency when both user authentication and role-based access control are needed.
+"""
+
+OptionalAuthenticatedUserDep = Annotated[
+    Optional[AuthenticatedUser], Depends(get_optional_authenticated_user)
+]
+"""Dependency that optionally provides an authenticated user.
+Returns None if no token is provided, allowing endpoints to work without authentication.
+Use this for public endpoints that can optionally track user information for logging.
 """
 
 
