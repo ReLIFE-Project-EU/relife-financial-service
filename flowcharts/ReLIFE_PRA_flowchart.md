@@ -15,7 +15,6 @@ This document shows the sequence of API calls needed to implement the PRA tool.
 | Aspect | HMA (Private) | PRA (Professional) |
 |--------|---------------|-------------------|
 | **Output Level** | `"private"` | `"professional"` |
-| **Target Users** | Homeowners | Energy consultants, advisors |
 | **Percentiles** | P10-P90 for all indicators | P10-P90 for all indicators |
 | **Success Metrics** | MonthlyAvgSavings, SuccessRate | 3 Probabilities (NPV>0, PBP<lifetime, DPP<lifetime) |
 | **Visualization** | cash_flow_data (1 timeline chart) | chart_metadata (5 distribution histograms) |
