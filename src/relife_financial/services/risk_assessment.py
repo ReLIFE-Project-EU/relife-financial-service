@@ -508,11 +508,14 @@ def _build_professional_output(
                     "P50": 0.0,
                     "P90": 0.0
                 },
-                "note": "Distribution unavailable: no finite simulation values.",
                 "chart_config": {
                     "xlabel": _get_indicator_label(indicator_key),
                     "ylabel": "Frequency (Number of Scenarios)",
-                    "title": f"{indicator_key} Distribution ({results['metadata']['n_sims']:,} Simulations)"
+                    "title": (
+                        f"{indicator_key} Distribution "
+                        f"({results['metadata']['n_sims']:,} Simulations) - "
+                        "Distribution unavailable: no finite simulation values."
+                    )
                 }
             }
             continue
