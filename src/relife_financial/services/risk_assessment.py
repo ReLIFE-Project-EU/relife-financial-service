@@ -87,7 +87,7 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
         raise ValueError(
             f"loan_amount ({request.loan_amount}) cannot exceed capex ({capex})"
         )
-    
+
     # ─────────────────────────────────────────────────────────────
     # Step 2: Run Monte Carlo Simulation
     # ─────────────────────────────────────────────────────────────
@@ -491,18 +491,43 @@ def _build_professional_output(
     for indicator in request.indicators:
         indicator_key = indicator.upper()
         data_array = raw_data[indicator.lower()]
-        
+
+        finite_data = data_array[np.isfinite(data_array)]
+
+        if finite_data.size == 0:
+            chart_metadata[indicator_key] = {
+                "bins": {
+                    "centers": [],
+                    "counts": [],
+                    "edges": []
+                },
+                "statistics": {
+                    "mean": 0.0,
+                    "std": 0.0,
+                    "P10": 0.0,
+                    "P50": 0.0,
+                    "P90": 0.0
+                },
+                "note": "Distribution unavailable: no finite simulation values.",
+                "chart_config": {
+                    "xlabel": _get_indicator_label(indicator_key),
+                    "ylabel": "Frequency (Number of Scenarios)",
+                    "title": f"{indicator_key} Distribution ({results['metadata']['n_sims']:,} Simulations)"
+                }
+            }
+            continue
+
         # Calculate histogram bins (30 bins for smooth distribution)
-        hist, bin_edges = np.histogram(data_array, bins=30, density=False)
+        hist, bin_edges = np.histogram(finite_data, bins=30, density=False)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        
+
         # Get P10/P50/P90 for vertical lines on chart
-        p10, p50, p90 = np.percentile(data_array, [10, 50, 90])
-        
+        p10, p50, p90 = np.percentile(finite_data, [10, 50, 90])
+
         # Calculate statistics
-        mean_val = float(np.mean(data_array))
-        std_val = float(np.std(data_array))
-        
+        mean_val = float(np.mean(finite_data))
+        std_val = float(np.std(finite_data))
+
         chart_metadata[indicator_key] = {
             "bins": {
                 "centers": [float(x) for x in bin_centers],
