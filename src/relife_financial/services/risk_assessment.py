@@ -577,10 +577,10 @@ def _build_professional_output(
     # ─────────────────────────────────────────────────────────────
     
     return RiskAssessmentResponse(
-        point_forecasts=point_forecasts,
-        percentiles=indicator_percentiles,
-        probabilities=probabilities,
-        metadata=metadata
+        point_forecasts=_sanitize_for_json(point_forecasts),
+        percentiles=_sanitize_for_json(indicator_percentiles),
+        probabilities=_sanitize_for_json(probabilities),
+        metadata=_sanitize_for_json(metadata)
     )
 
 
