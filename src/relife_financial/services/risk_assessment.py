@@ -578,25 +578,185 @@ def _build_public_output(
 ) -> RiskAssessmentResponse:
     """
     Build output for public users (government, research institutions).
-    
-    Focus: Comprehensive statistical analysis
-    - Point forecasts
-    - Key percentiles (P10/P50/P90)
-    - Full percentile breakdown (P5/P10/P25/P50/P75/P90/P95)
-    - Success probabilities
-    - Detailed metadata
-    
-    TODO: Implement public-level output
-    
+
+    Focus: Detailed analysis for public institutions
+    - Point forecasts (P50 median values)
+    - Full percentile distributions (P10-P90) for all indicators
+    - Success probability metrics
+    - Chart metadata for distribution graphs
+
+    Includes:
+        - Percentiles for IRR, NPV, PBP, DPP, ROI
+        - Probabilities: NPV > 0, PBP < lifetime, DPP < lifetime
+        - Metadata for generating distribution charts client-side
+
     Args:
         request: Original request parameters
         results: Raw simulation results from run_simulation()
-        
+
     Returns:
-        RiskAssessmentResponse with all statistical fields populated
+        RiskAssessmentResponse with point_forecasts, percentiles, probabilities, metadata
     """
-    # TODO: Implement
-    raise NotImplementedError("Public output not yet implemented")
+
+    raw_data = results['raw_data']
+
+    # ─────────────────────────────────────────────────────────────
+    # Build Point Forecasts (P50 Median)
+    # ─────────────────────────────────────────────────────────────
+
+    point_forecasts = {}
+
+    if "NPV" in request.indicators:
+        point_forecasts["NPV"] = float(np.median(raw_data['npv']))
+
+    if "IRR" in request.indicators:
+        point_forecasts["IRR"] = float(np.median(raw_data['irr']))
+
+    if "ROI" in request.indicators:
+        point_forecasts["ROI"] = float(np.median(raw_data['roi']))
+
+    if "PBP" in request.indicators:
+        point_forecasts["PBP"] = float(np.median(raw_data['pbp']))
+
+    if "DPP" in request.indicators:
+        point_forecasts["DPP"] = float(np.median(raw_data['dpp']))
+
+    # ─────────────────────────────────────────────────────────────
+    # Build Full Percentile Distributions
+    # ─────────────────────────────────────────────────────────────
+
+    percentiles = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+    indicator_percentiles = {}
+
+    if "NPV" in request.indicators:
+        npv_vals = np.percentile(raw_data['npv'], percentiles)
+        indicator_percentiles["NPV"] = {
+            f"P{p}": float(npv_vals[i])
+            for i, p in enumerate(percentiles)
+        }
+
+    if "IRR" in request.indicators:
+        irr_vals = np.percentile(raw_data['irr'], percentiles)
+        indicator_percentiles["IRR"] = {
+            f"P{p}": float(irr_vals[i])
+            for i, p in enumerate(percentiles)
+        }
+
+    if "ROI" in request.indicators:
+        roi_vals = np.percentile(raw_data['roi'], percentiles)
+        indicator_percentiles["ROI"] = {
+            f"P{p}": float(roi_vals[i])
+            for i, p in enumerate(percentiles)
+        }
+
+    if "PBP" in request.indicators:
+        pbp_vals = np.percentile(raw_data['pbp'], percentiles)
+        indicator_percentiles["PBP"] = {
+            f"P{p}": float(pbp_vals[i])
+            for i, p in enumerate(percentiles)
+        }
+
+    if "DPP" in request.indicators:
+        dpp_vals = np.percentile(raw_data['dpp'], percentiles)
+        indicator_percentiles["DPP"] = {
+            f"P{p}": float(dpp_vals[i])
+            for i, p in enumerate(percentiles)
+        }
+
+    # ─────────────────────────────────────────────────────────────
+    # Calculate Success Probabilities
+    # ─────────────────────────────────────────────────────────────
+
+    probabilities = {}
+
+    if "NPV" in request.indicators:
+        prob_npv_positive = float(np.mean(raw_data['npv'] > 0))
+        probabilities["Pr(NPV > 0)"] = round(prob_npv_positive, 4)
+
+    if "PBP" in request.indicators:
+        prob_pbp_within_lifetime = float(
+            np.mean(raw_data['pbp'] < request.project_lifetime)
+        )
+        probabilities[f"Pr(PBP < {request.project_lifetime}y)"] = round(
+            prob_pbp_within_lifetime, 4
+        )
+
+    if "DPP" in request.indicators:
+        prob_dpp_within_lifetime = float(
+            np.mean(raw_data['dpp'] < request.project_lifetime)
+        )
+        probabilities[f"Pr(DPP < {request.project_lifetime}y)"] = round(
+            prob_dpp_within_lifetime, 4
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    # Build Chart Metadata for Frontend Visualization
+    # ─────────────────────────────────────────────────────────────
+
+    chart_metadata = {}
+
+    for indicator in request.indicators:
+        indicator_key = indicator.upper()
+        data_array = raw_data[indicator.lower()]
+
+        hist, bin_edges = np.histogram(data_array, bins=30, density=False)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+        p10, p50, p90 = np.percentile(data_array, [10, 50, 90])
+
+        mean_val = float(np.mean(data_array))
+        std_val = float(np.std(data_array))
+
+        chart_metadata[indicator_key] = {
+            "bins": {
+                "centers": [float(x) for x in bin_centers],
+                "counts": [int(x) for x in hist],
+                "edges": [float(x) for x in bin_edges]
+            },
+            "statistics": {
+                "mean": round(mean_val, 4),
+                "std": round(std_val, 4),
+                "P10": round(float(p10), 4),
+                "P50": round(float(p50), 4),
+                "P90": round(float(p90), 4)
+            },
+            "chart_config": {
+                "xlabel": _get_indicator_label(indicator_key),
+                "ylabel": "Frequency (Number of Scenarios)",
+                "title": f"{indicator_key} Distribution ({results['metadata']['n_sims']:,} Simulations)"
+            }
+        }
+
+    # ─────────────────────────────────────────────────────────────
+    # Build Metadata
+    # ─────────────────────────────────────────────────────────────
+
+    metadata = {
+        "n_sims": results['metadata']['n_sims'],
+        "project_lifetime": request.project_lifetime,
+        "capex": request.capex,
+        "annual_maintenance_cost": request.annual_maintenance_cost,
+        "annual_energy_savings": request.annual_energy_savings,
+        "loan_amount": request.loan_amount,
+        "loan_term": request.loan_term,
+        "output_level": request.output_level.value,
+        "indicators_requested": request.indicators,
+        "chart_metadata": chart_metadata
+    }
+
+    disc_rate = results.get('metadata', {}).get('disc_target', 0.06)
+    metadata["discount_rate"] = round(float(disc_rate), 4)
+
+    # ─────────────────────────────────────────────────────────────
+    # Return Response
+    # ─────────────────────────────────────────────────────────────
+
+    return RiskAssessmentResponse(
+        point_forecasts=point_forecasts,
+        percentiles=indicator_percentiles,
+        probabilities=probabilities,
+        metadata=metadata
+    )
 
 
 # ============================================================================
