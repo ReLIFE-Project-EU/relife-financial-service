@@ -270,22 +270,7 @@ class RiskAssessmentResponse(BaseModel):
     # ─────────────────────────────────────────────────────────────
     # Professional and Above
     # ─────────────────────────────────────────────────────────────
-    
-    percentiles: Optional[Dict[str, Dict[str, float]]] = Field(
-        default=None,
-        description=(
-            "Percentile distributions for each indicator. "
-            "Professional: P10-P90 (9 percentiles). "
-            "Public: P5-P95 (full breakdown). "
-            "Used for distribution analysis and chart rendering."
-        ),
-        examples=[{
-            "IRR": {"P10": 0.031, "P20": 0.040, "P30": 0.046, "P40": 0.052, "P50": 0.057, 
-                    "P60": 0.063, "P70": 0.070, "P80": 0.079, "P90": 0.089},
-            "NPV": {"P10": 2100.0, "P20": 3200.0, "P50": 5432.1, "P90": 9800.0}
-        }]
-    )
-    
+
     probabilities: Optional[Dict[str, float]] = Field(
         default=None,
         description=(
@@ -304,17 +289,17 @@ class RiskAssessmentResponse(BaseModel):
     # ─────────────────────────────────────────────────────────────
     percentiles: Optional[Dict[str, Dict[str, float]]] = Field(
         default=None,
-        description="Full percentile breakdown (P5, P10, P25, P50, P75, P90, P95). Included in 'public' and 'complete'.",
+        description=(
+            "Percentile distributions for each indicator. "
+            "Professional: P10-P90 (9 percentiles). "
+            "Public/Complete: P5-P95 (full breakdown). "
+            "Used for distribution analysis and chart rendering."
+        ),
         examples=[{
-            "IRR": {
-                "P5": 0.023,
-                "P10": 0.031,
-                "P25": 0.042,
-                "P50": 0.057,
-                "P75": 0.073,
-                "P90": 0.089,
-                "P95": 0.098
-            }
+            "IRR": {"P10": 0.031, "P20": 0.040, "P30": 0.046, "P40": 0.052, "P50": 0.057,
+                    "P60": 0.063, "P70": 0.070, "P80": 0.079, "P90": 0.089},
+            "NPV": {"P10": 2100.0, "P20": 3200.0, "P30": 4100.0, "P40": 4800.0,
+                    "P50": 5432.1, "P60": 6100.0, "P70": 6900.0, "P80": 7800.0, "P90": 9800.0}
         }]
     )
     
@@ -361,7 +346,7 @@ class RiskAssessmentResponse(BaseModel):
                         "project_lifetime": 20,
                         "chart_metadata": {
                             "NPV": {
-                                "bins": {"centers": [...], "counts": [...], "edges": [...]},
+                                "bins": {"centers": [], "counts": [], "edges": []},
                                 "statistics": {"mean": 5500.0, "std": 2300.0, "P10": 2100.0, "P50": 5432.1, "P90": 9800.0},
                                 "chart_config": {"xlabel": "Net Present Value (€)", "ylabel": "Frequency (Number of Scenarios)", "title": "NPV Distribution (10,000 Simulations)"}
                             }
