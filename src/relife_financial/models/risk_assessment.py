@@ -50,6 +50,11 @@ class RiskAssessmentRequest(BaseModel):
             loan_amount: Loan principal in euros (user input, default: 0 = all-equity)
             loan_term: Loan repayment period in years (user input, default: 0)
         
+        Incentive Parameters:
+            upfront_incentive_percentage: Upfront capital incentive as % of CAPEX (0-100, default: 0)
+            lifetime_incentive_amount: Annual OPEX reduction in euros (default: 0)
+            lifetime_incentive_years: Years the OPEX reduction applies (default: 0)
+        
         Output Control:
             output_level: Detail level determined by frontend tool (private/professional/public/complete)
             indicators: Which KPIs to include (default: all 5)
@@ -115,6 +120,40 @@ class RiskAssessmentRequest(BaseModel):
             "Must be > 0 if loan_amount > 0."
         ),
         examples=[15]
+    )
+    
+    # ─────────────────────────────────────────────────────────────
+    # Incentive Parameters
+    # ─────────────────────────────────────────────────────────────
+    upfront_incentive_percentage: float = Field(
+        default=0.0,
+        ge=0,
+        le=100,
+        description=(
+            "Upfront capital incentive as percentage of CAPEX (0-100). "
+            "Reduces initial investment at t=0."
+        ),
+        examples=[10.0, 20.0]
+    )
+    
+    lifetime_incentive_amount: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Annual OPEX reduction incentive in euros. "
+            "Reduces operating expenses for specified number of years."
+        ),
+        examples=[1000.0, 2500.0]
+    )
+    
+    lifetime_incentive_years: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of years the annual OPEX reduction applies. "
+            "Must be 0 if lifetime_incentive_amount is 0."
+        ),
+        examples=[5, 10]
     )
     
     # ─────────────────────────────────────────────────────────────
@@ -184,6 +223,26 @@ class RiskAssessmentRequest(BaseModel):
             )
         if not v:
             raise ValueError("At least one indicator must be specified")
+        return v
+    
+    @field_validator('lifetime_incentive_years')
+    @classmethod
+    def validate_lifetime_incentive_years(cls, v, info):
+        """Ensure lifetime_incentive_years is only set when lifetime_incentive_amount > 0."""
+        if 'lifetime_incentive_amount' in info.data:
+            amount = info.data['lifetime_incentive_amount']
+            if amount == 0 and v > 0:
+                raise ValueError(
+                    "lifetime_incentive_years must be 0 when lifetime_incentive_amount is 0"
+                )
+            if amount > 0 and v == 0:
+                raise ValueError(
+                    "lifetime_incentive_years must be > 0 when lifetime_incentive_amount > 0"
+                )
+        if 'project_lifetime' in info.data and v > info.data['project_lifetime']:
+            raise ValueError(
+                f"lifetime_incentive_years ({v}) cannot exceed project_lifetime ({info.data['project_lifetime']})"
+            )
         return v
     
     model_config = {

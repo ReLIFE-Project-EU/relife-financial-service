@@ -101,6 +101,9 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
             loan_amount=request.loan_amount,
             loan_term=request.loan_term,
             loan_rate=None,  # Use market-simulated rates
+            upfront_incentive_percentage=request.upfront_incentive_percentage,
+            lifetime_incentive_amount=request.lifetime_incentive_amount,
+            lifetime_incentive_years=request.lifetime_incentive_years,
             n_sims=10000,
             seed=42  # Fixed seed for reproducibility
         )
@@ -258,6 +261,9 @@ def _build_private_output(
         "annual_energy_savings": request.annual_energy_savings,
         "loan_amount": request.loan_amount,
         "loan_term": request.loan_term,
+        "upfront_incentive_percentage": request.upfront_incentive_percentage,
+        "lifetime_incentive_amount": request.lifetime_incentive_amount,
+        "lifetime_incentive_years": request.lifetime_incentive_years,
         "output_level": request.output_level.value,
         "indicators_requested": request.indicators,
     }
@@ -295,9 +301,13 @@ def _build_private_output(
     # Annual revenues from energy savings
     annual_revenues = request.annual_energy_savings * median_elec_prices[:request.project_lifetime]
     
-    # Annual maintenance costs (inflated over time)
+    # Calculate upfront incentive reduction
+    upfront_incentive_amount = request.capex * (request.upfront_incentive_percentage / 100.0)
+    
+    # Annual maintenance costs (inflated over time) - MINUS lifetime incentive if applicable
     annual_opex = np.array([
         request.annual_maintenance_cost * np.prod([1 + median_inflation[j]/100 for j in range(i+1)]) 
+        - (request.lifetime_incentive_amount if i < request.lifetime_incentive_years else 0)
         for i in range(request.project_lifetime)
     ])
     
@@ -323,7 +333,7 @@ def _build_private_output(
     
     # Cumulative position for break-even calculation
     cumulative_position = np.zeros(request.project_lifetime + 1)
-    cumulative_position[0] = -(request.capex - request.loan_amount)
+    cumulative_position[0] = -(request.capex - upfront_incentive_amount - request.loan_amount)
     for i in range(request.project_lifetime):
         cumulative_position[i+1] = cumulative_position[i] + annual_net_cf[i]
     
@@ -333,9 +343,9 @@ def _build_private_output(
     # Prepare cash flow data for frontend
     cash_flow_data = {
         "years": list(range(0, request.project_lifetime + 1)),
-        "initial_investment": float(request.capex - request.loan_amount),
+        "initial_investment": float(request.capex - upfront_incentive_amount - request.loan_amount),
         "annual_inflows": [0.0] + [float(x) for x in annual_revenues],  # Year 0 has no inflows
-        "annual_outflows": [float(request.capex - request.loan_amount)] + [float(x) for x in total_annual_outflows],
+        "annual_outflows": [float(request.capex - upfront_incentive_amount - request.loan_amount)] + [float(x) for x in total_annual_outflows],
         "annual_net_cash_flow": [float(cumulative_position[0])] + [float(x) for x in annual_net_cf],  # Year 0 is negative (outflow)
         "cumulative_cash_flow": [float(x) for x in cumulative_position],
         "breakeven_year": breakeven_year,
@@ -563,6 +573,9 @@ def _build_professional_output(
         "annual_energy_savings": request.annual_energy_savings,
         "loan_amount": request.loan_amount,
         "loan_term": request.loan_term,
+        "upfront_incentive_percentage": request.upfront_incentive_percentage,
+        "lifetime_incentive_amount": request.lifetime_incentive_amount,
+        "lifetime_incentive_years": request.lifetime_incentive_years,
         "output_level": request.output_level.value,
         "indicators_requested": request.indicators,
         "chart_metadata": chart_metadata  # Metadata for generating distribution charts
@@ -767,6 +780,9 @@ def _build_public_output(
         "annual_energy_savings": request.annual_energy_savings,
         "loan_amount": request.loan_amount,
         "loan_term": request.loan_term,
+        "upfront_incentive_percentage": request.upfront_incentive_percentage,
+        "lifetime_incentive_amount": request.lifetime_incentive_amount,
+        "lifetime_incentive_years": request.lifetime_incentive_years,
         "output_level": request.output_level.value,
         "indicators_requested": request.indicators,
         "chart_metadata": chart_metadata

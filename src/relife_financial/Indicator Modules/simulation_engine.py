@@ -18,6 +18,9 @@ def cash_flows_with_loan(
     loan_amount: float,
     loan_interest_rate: list[float],
     loan_term: int,
+    upfront_incentive_percentage: float = 0.0,
+    lifetime_incentive_amount: float = 0.0,
+    lifetime_incentive_years: int = 0,
 ) -> list[float]:
     """Compute the yearly net cash-flow profile **including** debt service.
 
@@ -42,6 +45,12 @@ def cash_flows_with_loan(
         Annual interest rate applicable **per remaining principal**.
     loan_term : int
         Term of loan in *years* (must be at least 1).
+    upfront_incentive_percentage : float, optional
+        Upfront capital incentive as percentage of capex (0-100). Default: 0.
+    lifetime_incentive_amount : float, optional
+        Annual OPEX reduction in euros. Default: 0.
+    lifetime_incentive_years : int, optional
+        Number of years the OPEX reduction applies. Default: 0.
     Returns
     -------
     list[float]
@@ -52,8 +61,11 @@ def cash_flows_with_loan(
     try:
         flows = []
         
-        # capex minus the loan received
-        flows.append(-(capex-loan_amount))
+        # Calculate upfront incentive reduction
+        upfront_incentive_amount = capex * (upfront_incentive_percentage / 100.0)
+        
+        # capex minus the upfront incentive and loan received
+        flows.append(-(capex - upfront_incentive_amount - loan_amount))
         
         outstanding = loan_amount
         constant_principal_payment = loan_amount / loan_term if loan_term > 0 else 0.0
@@ -61,7 +73,13 @@ def cash_flows_with_loan(
 
         for year in range(0, project_lifetime):
             cumulative_infl *= (1 + inflation_rate[year]/100.0)
-            operating_cf = annual_energy_savings * electricity_prices[year] - annual_maintenace_cost * cumulative_infl
+            opex = annual_maintenace_cost * cumulative_infl
+            
+            # Apply lifetime incentive if applicable
+            if year < lifetime_incentive_years:
+                opex -= lifetime_incentive_amount
+            
+            operating_cf = annual_energy_savings * electricity_prices[year] - opex
             loan_payment = 0.0
             
             if year <= loan_term and loan_amount > 0:
@@ -83,6 +101,9 @@ def cash_flows(
     project_lifetime: int,
     electricity_prices: list[float],
     inflation_rate: list[float],
+    upfront_incentive_percentage: float = 0.0,
+    lifetime_incentive_amount: float = 0.0,
+    lifetime_incentive_years: int = 0,
 ) -> list[float]:
     """Compute yearly net cash-flows for an **equity-only** project.
 
@@ -93,6 +114,12 @@ def cash_flows(
     ----------
     capex, annual_energy_savings, annual_maintenace_cost, project_lifetime,
     electricity_prices, inflation_rate : see :func:`cash_flows_with_loan`.
+    upfront_incentive_percentage : float, optional
+        Upfront capital incentive as percentage of capex (0-100). Default: 0.
+    lifetime_incentive_amount : float, optional
+        Annual OPEX reduction in euros. Default: 0.
+    lifetime_incentive_years : int, optional
+        Number of years the OPEX reduction applies. Default: 0.
 
     Returns
     -------
@@ -100,11 +127,20 @@ def cash_flows(
         Cash-flow sequence (first entry negative).
     """
     try:
-        flows = [-capex] # t = 0 equity investment
+        # Calculate upfront incentive reduction
+        upfront_incentive_amount = capex * (upfront_incentive_percentage / 100.0)
+        
+        flows = [-(capex - upfront_incentive_amount)] # t = 0 equity investment minus upfront incentive
         cumulative_infl = 1.0
         for k in range(0, project_lifetime):
             cumulative_infl *= (1 + inflation_rate[k]/100.0)
-            flow_k = annual_energy_savings * electricity_prices[k] - annual_maintenace_cost * cumulative_infl
+            opex = annual_maintenace_cost * cumulative_infl
+            
+            # Apply lifetime incentive if applicable
+            if k < lifetime_incentive_years:
+                opex -= lifetime_incentive_amount
+            
+            flow_k = annual_energy_savings * electricity_prices[k] - opex
             flows.append(flow_k)
         return flows
     except Exception:
@@ -367,6 +403,9 @@ def run_simulation(
     loan_amount: float = 0.0,
     loan_term: int = 0,
     loan_rate: Optional[float] = None,
+    upfront_incentive_percentage: float = 0.0,
+    lifetime_incentive_amount: float = 0.0,
+    lifetime_incentive_years: int = 0,
     n_sims: int = 10000,
     seed: int = 42,
 ) -> Dict[str, Any]:
@@ -390,6 +429,12 @@ def run_simulation(
     loan_rate : float, optional
         Fixed loan interest rate as percentage (e.g., 3.5 for 3.5%).
         If None, uses market-simulated rates. (default: None)
+    upfront_incentive_percentage : float, optional
+        Upfront capital incentive as percentage of capex (0-100). Default: 0.
+    lifetime_incentive_amount : float, optional
+        Annual OPEX reduction in euros. Default: 0.
+    lifetime_incentive_years : int, optional
+        Number of years the OPEX reduction applies. Default: 0.
     n_sims : int, optional
         Number of Monte Carlo simulations (default: 10000)
     seed : int, optional
@@ -589,14 +634,16 @@ def run_simulation(
         if loan_amount > 0 and loan_term > 0:
             flows = cash_flows_with_loan(
                 capex, annual_energy_savings, annual_maintenace_cost, T,
-                elec_i, infl_i, loan_amount, rate_i, loan_term
+                elec_i, infl_i, loan_amount, rate_i, loan_term,
+                upfront_incentive_percentage, lifetime_incentive_amount, lifetime_incentive_years
             )
             pbp_i = PBP(flows, loan=True, loan_term=loan_term)
             dpp_i = DPP(disc_i, T, flows, loan=True, loan_term=loan_term)
         else:
             flows = cash_flows(
                 capex, annual_energy_savings, annual_maintenace_cost, T,
-                elec_i, infl_i
+                elec_i, infl_i,
+                upfront_incentive_percentage, lifetime_incentive_amount, lifetime_incentive_years
             )
             pbp_i = PBP(flows)
             dpp_i = DPP(disc_i, T, flows)
@@ -659,6 +706,9 @@ def run_simulation(
             "loan_amount": loan_amount,
             "loan_term": loan_term,
             "loan_rate": loan_rate,
+            "upfront_incentive_percentage": upfront_incentive_percentage,
+            "lifetime_incentive_amount": lifetime_incentive_amount,
+            "lifetime_incentive_years": lifetime_incentive_years,
         },
         "market_distributions": dist_params,
     }

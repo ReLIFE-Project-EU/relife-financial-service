@@ -57,6 +57,9 @@ async def assess_project_risk(
         - project_lifetime: Project duration (years)
         - loan_amount: Financed amount (€)
         - loan_term: Loan duration (years)
+        - upfront_incentive_percentage: Upfront capital incentive as % of CAPEX (0-100)
+        - lifetime_incentive_amount: Annual OPEX reduction (€/year)
+        - lifetime_incentive_years: Duration of OPEX reduction (years)
         - output_level: Response complexity (private/professional/public/complete)
         - indicators: List of KPIs to calculate (NPV, IRR, ROI, PBP, DPP)
     
@@ -89,6 +92,9 @@ async def assess_project_risk(
         "project_lifetime": 20,
         "loan_amount": 20000,
         "loan_term": 15,
+        "upfront_incentive_percentage": 10.0,
+        "lifetime_incentive_amount": 500.0,
+        "lifetime_incentive_years": 5,
         "output_level": "private",
         "indicators": ["NPV", "PBP", "ROI", "IRR"]
     }
