@@ -34,50 +34,48 @@ async def calculate_arv(
 ) -> ARVResponse:
     """
     Calculate After Renovation Value (ARV) for a property.
-    
-    This endpoint predicts the property value after energy renovation based on
-    physical characteristics, location, and energy performance class. The prediction
-    uses a trained LightGBM model on Greek property market data.
-    
-    **Use Case**: Estimate property value increase due to energy efficiency improvements.
-    The energy_class input should be the AFTER renovation EPC label (obtained from
-    the energy analysis API).
-    
+
+    Predicts property market value using a trained LightGBM model on Greek
+    property market data. Accepts post-renovation energy consumption (required)
+    and optionally pre-renovation energy consumption to compute the value uplift.
+
+    **EPC Resolution Chain** (applied to each consumption value):
+    energy_consumption → source-country EPC → Italy EPC → Greek EPC → model
+
     **Authentication**: Optional. If a valid JWT token is provided, user information
     will be logged for audit purposes.
-    
+
     Parameters
     ----------
     request : ARVRequest
         Property characteristics including:
         - **Location**: lat, lng (coordinates)
-        - **Physical**: floor_area (m²), construction_year, floor_number, 
+        - **Physical**: floor_area (m²), construction_year, floor_number,
           number_of_floors, property_type
-        - **Energy**: energy_class (EPC label after renovation), 
-          renovated_last_5_years (typically True)
-    
+        - **Energy**: target_country, energy_consumption_after (required),
+          energy_consumption_before (optional), renovated_last_5_years
+
     Returns
     -------
     ARVResponse
-        Predicted property value with:
-        - price_per_sqm: Predicted price per square meter (€/m²)
-        - total_price: Total property value (€)
-        - floor_area: Echo of input floor area (m²)
-        - energy_class: Echo of input energy class
-        - metadata: Additional prediction details (model version, timestamp, etc.)
-    
+        - after: predicted value at post-renovation energy consumption (always present)
+        - before: predicted value at pre-renovation energy consumption (only when energy_consumption_before is provided)
+        - uplift: price_increase (€) and price_increase_pct (%) (only when before is present)
+        - floor_area: echo of input floor area (m²)
+        - metadata: model file, timestamp, building age, input echo
+
     Raises
     ------
     HTTPException 400
-        - Invalid input parameters (e.g., floor_number >= number_of_floors)
-        - Missing or invalid property characteristics
+        - Unknown target_country
+        - floor_number >= number_of_floors
+        - EPC mapping failure
     HTTPException 500
-        - Model file not found
-        - Model loading failed
+        - Model file not found or loading failed
         - Prediction execution failed
-    
-    Example Request
-    ---------------
+
+    Example Request (with before/after comparison)
+    -----------------------------------------------
     ```json
     {
         "lat": 37.981,
@@ -87,34 +85,39 @@ async def calculate_arv(
         "floor_number": 2,
         "number_of_floors": 5,
         "property_type": "Apartment",
-        "energy_class": "Β+",
+        "target_country": "Italy",
+        "energy_consumption_before": 220.0,
+        "energy_consumption_after": 85.0,
         "renovated_last_5_years": true
     }
     ```
-    
+
     Example Response
     ----------------
     ```json
     {
-        "price_per_sqm": 1235.50,
-        "total_price": 105017.50,
+        "after": {
+            "price_per_sqm": 1235.50,
+            "total_price": 105017.50,
+            "greek_epc_class": "Ε",
+            "epc_resolution": {"target_country": "Italy", "source_epc_class": "E", "italy_epc_class": "E", "greek_epc_class": "Ε"}
+        },
+        "before": {
+            "price_per_sqm": 980.00,
+            "total_price": 83300.00,
+            "greek_epc_class": "Η",
+            "epc_resolution": {"target_country": "Italy", "source_epc_class": "G", "italy_epc_class": "G", "greek_epc_class": "Η"}
+        },
+        "uplift": {
+            "price_increase": 21717.50,
+            "price_increase_pct": 26.07
+        },
         "floor_area": 85.0,
-        "energy_class": "Β+",
         "metadata": {
-            "model_file": "lgb_model.pkl",
+            "model_file": "lgb_model_greece.pkl",
             "prediction_timestamp": "2026-01-08T14:30:00.123456",
             "building_age": 41,
-            "property_type_mapped": "Διαμέρισμα",
-            "input_features": {
-                "lat": 37.981,
-                "lng": 23.728,
-                "floor_area": 85.0,
-                "building_age": 41,
-                "floor_number": 2,
-                "number_of_floors": 5,
-                "energy_class": "Β+",
-                "renovated_last_5_years": true
-            }
+            "energy_consumption_unit": "kWh/m²/year"
         }
     }
     ```

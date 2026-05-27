@@ -6,13 +6,15 @@ property price prediction API based on a trained LightGBM model.
 
 Models:
     - PropertyType: Enum defining allowed property types
-    - EnergyClass: Enum defining valid energy efficiency classes
     - ARVRequest: Input parameters for property valuation
-    - ARVResponse: Output structure with predicted prices
+    - ARVValueSnapshot: Price prediction for a single energy state
+    - ARVUplift: Monetary and percentage increase between two states
+    - ARVResponse: Full response with before/after values and uplift
 """
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from enum import Enum
+
 
 
 class PropertyType(str, Enum):
@@ -31,24 +33,6 @@ class PropertyType(str, Enum):
     MAISONETTE = "Maisonette"
     DETACHED_HOUSE = "Detached House"
     APARTMENT_COMPLEX = "Apartment Complex"
-
-
-class EnergyClass(str, Enum):
-    """
-    Energy Performance Certificate (EPC) classes.
-    
-    Ordered from worst (Η) to best (Α+) energy efficiency.
-    Greek labels as used in the Greek property market.
-    """
-    H = "Η"  # Worst
-    Z = "Ζ"
-    E = "Ε"
-    D = "Δ"
-    G = "Γ"
-    B = "Β"
-    B_PLUS = "Β+"
-    A = "Α"
-    A_PLUS = "Α+"  # Best
 
 
 class ARVRequest(BaseModel):
@@ -71,7 +55,11 @@ class ARVRequest(BaseModel):
             property_type: Type of property (Apartment, Villa, etc.)
         
         Energy Performance:
-            energy_class: Current/predicted EPC label after renovation
+            target_country: Country whose EPC scale applies (e.g. "Italy", "Austria", "Germany")
+            energy_consumption_before: Pre-renovation energy consumption. If provided,
+                enables before/after comparison and uplift calculation.
+            energy_consumption_after: Post-renovation energy consumption (required).
+                For most countries: kWh/m²/year. For Portugal and Czech Republic: % of reference.
             renovated_last_5_years: Whether property was recently renovated
     """
     
@@ -138,15 +126,41 @@ class ARVRequest(BaseModel):
     # ─────────────────────────────────────────────────────────────
     # Energy Performance
     # ─────────────────────────────────────────────────────────────
-    energy_class: EnergyClass = Field(
+    target_country: str = Field(
         ...,
         description=(
-            "Energy Performance Certificate (EPC) class. "
-            "This should be the AFTER renovation energy class (obtained from energy analysis API)."
+            "Country whose national EPC scale applies to this property. "
+            "Supported values: Greece, Italy, Croatia, Spain, Portugal, Czech Republic, "
+            "Germany, France, Austria, Netherlands, Belgium Brussels, Belgium Wallonia, "
+            "Belgium Flanders, Luxembourg Flats, Luxembourg Houses, Denmark, Norway, "
+            "Finland, Bulgaria, Romania, Slovakia. "
+            "Country aliases (e.g. 'hellas', 'flanders', 'brussels') are also accepted."
         ),
-        examples=["Β+"]
+        examples=["Italy", "Austria", "Germany"]
     )
-    
+
+    energy_consumption_before: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Pre-renovation energy consumption. When provided together with "
+            "energy_consumption_after, the response includes a before/after comparison "
+            "and uplift calculation. Same unit as energy_consumption_after."
+        ),
+        examples=[220.0, 300.0]
+    )
+
+    energy_consumption_after: float = Field(
+        ...,
+        gt=0,
+        description=(
+            "Post-renovation energy consumption of the property. "
+            "For most countries: kWh/m²/year. "
+            "For Portugal and Czech Republic: % of reference consumption."
+        ),
+        examples=[85.0, 150.0]
+    )
+
     renovated_last_5_years: bool = Field(
         default=True,
         description=(
@@ -169,51 +183,76 @@ class ARVRequest(BaseModel):
         return v
 
 
+class ARVValueSnapshot(BaseModel):
+    """
+    Predicted property value for a single energy state (before or after renovation).
+    """
+    price_per_sqm: float = Field(
+        ...,
+        description="Predicted price per square meter (€/m²).",
+        examples=[980.00]
+    )
+    total_price: float = Field(
+        ...,
+        description="Total predicted property value (€).",
+        examples=[83300.00]
+    )
+    greek_epc_class: str = Field(
+        ...,
+        description="Resolved Greek EPC class used as model input.",
+        examples=["Η", "Ε", "Α+"]
+    )
+    epc_resolution: dict = Field(
+        default_factory=dict,
+        description="EPC resolution chain: source EPC → Italy EPC → Greek EPC.",
+        examples=[{"target_country": "Italy", "source_epc_class": "G", "italy_epc_class": "G", "greek_epc_class": "Η"}]
+    )
+
+
+class ARVUplift(BaseModel):
+    """
+    Monetary and percentage value increase from pre- to post-renovation state.
+    """
+    price_increase: float = Field(
+        ...,
+        description="Absolute increase in total property value (€). Can be negative.",
+        examples=[21717.50]
+    )
+    price_increase_pct: float = Field(
+        ...,
+        description="Percentage increase in total property value. Can be negative.",
+        examples=[26.07]
+    )
+
+
 class ARVResponse(BaseModel):
     """
     Response model for After Renovation Value prediction.
-    
-    Contains the predicted property value after renovation based on
-    the provided characteristics and energy efficiency class.
-    
-    Attributes:
-        price_per_sqm: Predicted price per square meter (€/m²)
-        total_price: Total predicted property value (€)
-        floor_area: Echo of input floor area for reference (m²)
-        energy_class: Echo of input energy class for reference
-        metadata: Additional information about the prediction
+
+    When only energy_consumption_after is provided, only `after` is populated.
+    When both energy_consumption_before and energy_consumption_after are provided,
+    `before`, `after`, and `uplift` are all populated.
     """
-    
-    price_per_sqm: float = Field(
+    after: ARVValueSnapshot = Field(
         ...,
-        description="Predicted price per square meter in euros.",
-        examples=[1235.50]
+        description="Predicted property value using post-renovation energy consumption."
     )
-    
-    total_price: float = Field(
-        ...,
-        description="Total predicted property value in euros (price_per_sqm × floor_area).",
-        examples=[105017.50]
+    before: Optional[ARVValueSnapshot] = Field(
+        default=None,
+        description="Predicted property value using pre-renovation energy consumption. "
+                    "Only present when energy_consumption_before was provided."
     )
-    
+    uplift: Optional[ARVUplift] = Field(
+        default=None,
+        description="Value increase from before to after renovation. "
+                    "Only present when energy_consumption_before was provided."
+    )
     floor_area: float = Field(
         ...,
-        description="Floor area used in calculation (m²).",
+        description="Floor area used in calculations (m²).",
         examples=[85.0]
     )
-    
-    energy_class: str = Field(
-        ...,
-        description="Energy class used in prediction.",
-        examples=["Β+"]
-    )
-    
     metadata: dict = Field(
         default_factory=dict,
-        description="Additional metadata about the prediction (model version, timestamp, etc.).",
-        examples=[{
-            "model_version": "lgb_model.pkl",
-            "prediction_timestamp": "2026-01-08T10:30:00Z",
-            "building_age": 41
-        }]
+        description="Prediction details: model file, timestamp, building age, input echo."
     )
