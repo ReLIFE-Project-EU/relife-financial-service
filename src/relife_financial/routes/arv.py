@@ -138,20 +138,23 @@ async def calculate_arv(
         extra={
             "user_id": user_id,
             "floor_area": request.floor_area,
-            "energy_class": request.energy_class.value,
             "property_type": request.property_type.value,
+            "target_country": request.target_country,
+            "energy_consumption_after": request.energy_consumption_after,
+            "energy_consumption_before": request.energy_consumption_before,
         }
     )
-    
+
     try:
         result = await predict_arv(request)
-        
+
         logger.info(
             f"ARV prediction successful for user {user_id}",
             extra={
                 "user_id": user_id,
-                "price_per_sqm": result.price_per_sqm,
-                "total_price": result.total_price,
+                "price_per_sqm": result.after.price_per_sqm,
+                "total_price": result.after.total_price,
+                "greek_epc_class": result.after.greek_epc_class,
             }
         )
         

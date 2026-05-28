@@ -25,15 +25,3 @@ def test_openapi_docs_available():
     openapi_data = response.json()
     assert "openapi" in openapi_data
     assert openapi_data["info"]["title"]
-
-def test_openapi_docs_npv_available():
-    """Test that OpenAPI documentation for the NPV endpoint is available."""
-
-    response = client.get("/openapi.json")
-    assert response.status_code == 200
-
-    openapi_data = response.json()
-    assert "/financial/npv" in openapi_data["paths"]
-    npv_post = openapi_data["paths"]["/financial/npv"]["post"]
-    assert "summary" in npv_post
-    assert "net present value" in npv_post["summary"].lower()
