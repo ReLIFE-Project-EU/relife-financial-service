@@ -196,6 +196,38 @@ Common aliases are also accepted (e.g. `"hellas"`, `"brussels"`, `"flanders"`, `
 
 ---
 
+---
+
+## Known Limitation — Greek Market Model
+
+> ⚠️ **This limitation affects all non-Greek users and must be communicated to the product/research team before the tool is exposed to end-users in other countries.**
+
+The underlying LightGBM model (`lgb_model_greece.pkl`) was trained exclusively on **Greek property market data**. This has two consequences:
+
+### What the EPC chain solves
+The `target_country` + `energy_consumption` inputs correctly normalise national EPC classifications to the Greek EPC scale the model expects. Energy performance comparisons across countries are handled correctly.
+
+### What the EPC chain does NOT solve
+The model's price predictions (`price_per_sqm`, `total_price`) are always expressed in **Greek market terms**. For a user from Austria, Germany, Italy, etc.:
+
+- Their actual coordinates (e.g. Salzburg at `lat: 47.8, lng: 13.0`) are **outside the model's training distribution** — the model has never seen property data at those coordinates.
+- The absolute price figures (`€/m²`, total `€`) do **not** reflect their local property market.
+- Feeding non-Greek coordinates produces an extrapolation of unknown quality — the output is not meaningful as an absolute market value.
+
+### What IS meaningful cross-border
+The **percentage uplift** (`uplift.price_increase_pct`) remains a valid relative signal: it captures how much energy efficiency improvement shifts property value, expressed as a ratio. This is independent of the absolute price level.
+
+### Recommendations
+
+| Use case | Recommendation |
+|----------|---------------|
+| Greek users | All outputs (`price_per_sqm`, `total_price`, `uplift`) are valid |
+| Non-Greek users — absolute price | **Do not display** `price_per_sqm` or `total_price` as the user's actual property value |
+| Non-Greek users — renovation uplift | Display `uplift.price_increase_pct` only, clearly labelled as a relative indicator based on the Greek market |
+| Future improvement | Train country-specific models, or apply a country-level price index multiplier (e.g. from Eurostat) to scale Greek prices to local market levels |
+
+---
+
 ## Migration Checklist
 
 - [ ] Remove `energy_class` from the request payload

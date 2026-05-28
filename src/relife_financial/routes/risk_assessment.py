@@ -52,14 +52,10 @@ async def assess_project_risk(
     request : RiskAssessmentRequest
         Project parameters including:
         - capex: Total investment cost (€)
-        - annual_energy_savings: Energy production/savings (kWh/year)
-        - annual_maintenance_cost: Yearly maintenance cost (€)
-        - project_lifetime: Project duration (years)
-        - loan_amount: Financed amount (€)
-        - loan_term: Loan duration (years)
-        - upfront_incentive_percentage: Upfront capital incentive as % of CAPEX (0-100)
-        - lifetime_incentive_amount: Annual OPEX reduction (€/year)
-        - lifetime_incentive_years: Duration of OPEX reduction (years)
+        - annual_energy_savings: Annual energy savings estimate (kWh/year)
+        - annual_maintenance_cost: Yearly O&M cost (€)
+        - project_lifetime: Project duration (years, max 30)
+        - schemes: List of financing schemes to evaluate (discriminated by scheme_type)
         - output_level: Response complexity (private/professional/public/complete)
         - indicators: List of KPIs to calculate (NPV, IRR, ROI, PBP, DPP)
     
@@ -90,39 +86,39 @@ async def assess_project_risk(
         "annual_energy_savings": 27400,
         "annual_maintenance_cost": 2000,
         "project_lifetime": 20,
-        "loan_amount": 20000,
-        "loan_term": 15,
-        "upfront_incentive_percentage": 10.0,
-        "lifetime_incentive_amount": 500.0,
-        "lifetime_incentive_years": 5,
-        "output_level": "private",
-        "indicators": ["NPV", "PBP", "ROI", "IRR"]
+        "output_level": "professional",
+        "schemes": [
+            {"scheme_type": "equity"},
+            {"scheme_type": "bank_loan", "loan_amount": 25000, "term_years": 15},
+            {"scheme_type": "epc_shared_savings", "p_ESCO": 0.30, "term_years": 10}
+        ],
+        "indicators": ["NPV", "IRR", "PBP", "ROI"]
     }
     ```
     
-    Example Response (private level)
-    ---------------------------------
+    Example Response (professional level, equity scheme only shown)
+    ---------------------------------------------------------------
     ```json
     {
-        "point_forecasts": {
-            "NPV": 15511.19,
-            "PBP": 10.9,
-            "ROI": 1.423,
-            "IRR": 0.084,
-            "MonthlyAvgSavings": 231.30,
-            "SuccessRate": 0.982
+        "results": {
+            "equity": {
+                "scheme_id": 1,
+                "scheme_family": "self_financed",
+                "summary": {
+                    "percentiles": {"IRR": {"P50": 0.084}, "NPV": {"P50": 15400}},
+                    "probabilities": {"Pr(NPV > 0)": 0.952},
+                    "disc_target_used": 0.05,
+                    "n_sims": 10000
+                },
+                "kpi_histograms": {"NPV": {...}, "IRR": {...}},
+                "cashflow_distributions": {"years": [0, 1, ..., 20], "cash_flows": {...}}
+            }
         },
         "metadata": {
-            "n_sims": 10000,
-            "project_lifetime": 20,
             "capex": 60000,
-            "loan_amount": 20000,
-            "annual_loan_payment": 1736.50,
-            "loan_rate_percent": 3.5,
-            "output_level": "private"
-        },
-        "visualizations": {
-            "cash_flow_timeline": "data:image/png;base64,iVBORw0KG..."
+            "project_lifetime": 20,
+            "n_schemes": 1,
+            "output_level": "professional"
         }
     }
     ```
@@ -144,6 +140,8 @@ async def assess_project_risk(
             capex=request.capex,
             project_lifetime=request.project_lifetime,
             output_level=request.output_level.value,
+            n_schemes=len(request.schemes),
+            scheme_types=[s.scheme_type for s in request.schemes],
             indicators=request.indicators,
         )
         
