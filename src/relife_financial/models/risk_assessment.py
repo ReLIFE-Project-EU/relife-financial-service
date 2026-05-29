@@ -7,7 +7,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class OutputLevel(str, Enum):
@@ -152,6 +152,71 @@ SchemeInput = Annotated[
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Renovation action model (used for optional CAPEX/OPEX lookup)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_AREA_ACTIONS: frozenset[str] = frozenset({
+    "Wall insulation",
+    "Wall insulation - additional",
+    "Roof insulation - Accessible",
+    "Roof insulation - Makeover",
+    "Floor insulation",
+    "Windows",
+})
+_CAPACITY_ACTIONS: frozenset[str] = frozenset({
+    "Air-water Heat Pump",
+    "Condensing boiler",
+    "PV",
+    "Solar thermal panels",
+})
+
+
+class RenovationAction(BaseModel):
+    """A single renovation measure within a package, used for CAPEX/OPEX lookup."""
+
+    action: str = Field(
+        ...,
+        description=(
+            "Renovation work type. Must be one of the 10 supported action names: "
+            "'Wall insulation', 'Wall insulation - additional', "
+            "'Roof insulation - Accessible', 'Roof insulation - Makeover', "
+            "'Floor insulation', 'Windows', "
+            "'Air-water Heat Pump', 'Condensing boiler', 'PV', 'Solar thermal panels'."
+        ),
+    )
+    area_m2: Optional[float] = Field(
+        default=None, gt=0,
+        description="Surface area in m² — required for insulation and windows actions.",
+    )
+    capacity_kw: Optional[float] = Field(
+        default=None, gt=0,
+        description="Installed capacity in kW — required for HVAC, PV, and solar actions.",
+    )
+    material: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional material variant (e.g. EPS, MW, GW for wall insulation; "
+            "PVC, Al, Wood for windows). If omitted and multiple variants exist, "
+            "the average price across all materials is used."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def check_quantity(self) -> RenovationAction:
+        all_actions = _AREA_ACTIONS | _CAPACITY_ACTIONS
+        if self.action not in all_actions:
+            raise ValueError(
+                f"Unknown action '{self.action}'. "
+                f"Supported: {sorted(all_actions)}"
+            )
+        if self.action in _AREA_ACTIONS and self.area_m2 is None:
+            raise ValueError(f"area_m2 is required for action '{self.action}'.")
+        if self.action in _CAPACITY_ACTIONS and self.capacity_kw is None:
+            raise ValueError(f"capacity_kw is required for action '{self.action}'.")
+        return self
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Request / Response
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -159,16 +224,45 @@ class RiskAssessmentRequest(BaseModel):
     """Request model for multi-scheme Monte Carlo risk assessment."""
 
     # Project parameters
-    capex: float = Field(..., gt=0, description="Total capital expenditure (EUR)", examples=[60000])
+    capex: Optional[float] = Field(
+        default=None, gt=0,
+        description=(
+            "Total capital expenditure (EUR). "
+            "If omitted, computed automatically from country + renovation_actions lookup."
+        ),
+        examples=[60000],
+    )
     annual_energy_savings: float = Field(
         ..., gt=0,
         description="Base annual energy savings estimate (kWh/year). Treated stochastically (P10 = 0.70x).",
         examples=[27400],
     )
-    annual_maintenance_cost: float = Field(
-        default=0.0, ge=0,
-        description="Annual O&M cost in today's money (EUR/year)",
+    annual_maintenance_cost: Optional[float] = Field(
+        default=None, ge=0,
+        description=(
+            "Annual O&M cost in today's money (EUR/year). "
+            "If omitted, computed automatically from country + renovation_actions lookup. "
+            "Defaults to 0 if renovation_actions contains only insulation/windows measures."
+        ),
         examples=[2000],
+    )
+
+    # CAPEX/OPEX lookup fields (required when capex or annual_maintenance_cost is omitted)
+    country: Optional[str] = Field(
+        default=None,
+        description=(
+            "EU country name (one of 27 supported countries). "
+            "Required when capex or annual_maintenance_cost is not provided explicitly."
+        ),
+        examples=["Italy"],
+    )
+    renovation_actions: Optional[List[RenovationAction]] = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Renovation package used to look up unit prices and O&M costs. "
+            "Required when capex or annual_maintenance_cost is not provided explicitly."
+        ),
     )
     project_lifetime: int = Field(
         ..., ge=1, le=30,
@@ -204,6 +298,20 @@ class RiskAssessmentRequest(BaseModel):
         default=None,
         description="Override to force include/exclude visualizations.",
     )
+
+    @model_validator(mode="after")
+    def resolve_lookup_fields(self) -> RiskAssessmentRequest:
+        needs_lookup = self.capex is None or self.annual_maintenance_cost is None
+        if needs_lookup:
+            if self.country is None:
+                raise ValueError(
+                    "'country' is required when 'capex' or 'annual_maintenance_cost' is not provided."
+                )
+            if not self.renovation_actions:
+                raise ValueError(
+                    "'renovation_actions' is required when 'capex' or 'annual_maintenance_cost' is not provided."
+                )
+        return self
 
     @field_validator("indicators")
     @classmethod

@@ -21,6 +21,7 @@ from simulation_engine import (
     get_kpi_results,
 )
 
+from ..data.lookup import compute_capex, compute_opex
 from ..models.risk_assessment import (
     OutputLevel,
     RiskAssessmentRequest,
@@ -87,6 +88,20 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
     RuntimeError
         If the Monte Carlo simulation itself fails.
     """
+    # ── Resolve CAPEX / OPEX (lookup if not explicitly provided) ───────────────
+    capex_from_lookup = request.capex is None
+    opex_from_lookup = request.annual_maintenance_cost is None
+
+    if capex_from_lookup:
+        capex = compute_capex(request.country, request.renovation_actions)
+    else:
+        capex = request.capex
+
+    if opex_from_lookup:
+        opex = compute_opex(request.country, request.renovation_actions)
+    else:
+        opex = request.annual_maintenance_cost if request.annual_maintenance_cost is not None else 0.0
+
     # ── Convert scheme models to engine tuples ────────────────────────────────
     schemes = []
     for s in request.schemes:
@@ -96,9 +111,9 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
     # ── Run simulation ────────────────────────────────────────────────────────
     try:
         raw_results = get_kpi_results(
-            capex=request.capex,
+            capex=capex,
             annual_energy_savings=request.annual_energy_savings,
-            annual_maintenace_cost=request.annual_maintenance_cost,
+            annual_maintenace_cost=opex,
             project_lifetime=request.project_lifetime,
             schemes=schemes,
             n_sims=10000,
@@ -130,9 +145,11 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
 
     # ── Build metadata ────────────────────────────────────────────────────────
     metadata = _sanitize_for_json({
-        "capex":                    request.capex,
+        "capex":                    capex,
+        "capex_from_lookup":        capex_from_lookup,
         "annual_energy_savings":    request.annual_energy_savings,
-        "annual_maintenance_cost":  request.annual_maintenance_cost,
+        "annual_maintenance_cost":  opex,
+        "opex_from_lookup":         opex_from_lookup,
         "project_lifetime":         request.project_lifetime,
         "n_schemes":                len(results),
         "scheme_types":             list(results.keys()),

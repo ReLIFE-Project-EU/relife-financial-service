@@ -30,15 +30,57 @@ The Risk Assessment endpoint (`POST /risk-assessment`) has been significantly up
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `capex` | `float` | ✅ | Total investment cost (€) |
+| `capex` | `float` | — | Total investment cost (€). **Now optional** — omit to have it computed from `country` + `renovation_actions`. |
 | `annual_energy_savings` | `float` | ✅ | Expected annual energy savings (kWh/year) |
-| `annual_maintenance_cost` | `float` | ✅ | Annual O&M cost (€/year) |
+| `annual_maintenance_cost` | `float` | — | Annual O&M cost (€/year). **Now optional** — omit to have it computed from `country` + `renovation_actions`. Defaults to `0` when only insulation/windows are present. |
 | `project_lifetime` | `int` (1–30) | ✅ | Evaluation horizon (years) |
 | `schemes` | `list[SchemeInput]` | ✅ | One or more financing schemes to evaluate (see below). Minimum 1, maximum 12 |
 | `output_level` | `enum` | ✅ | `private` / `professional` / `public` / `complete` |
 | `indicators` | `list[str]` | — | KPIs to return. Default: all. Any subset of `["IRR","NPV","PBP","DPP","ROI"]` |
+| `country` | `string` | (see note) | EU country name. **Required when `capex` or `annual_maintenance_cost` is omitted.** See supported values below. |
+| `renovation_actions` | `list[RenovationAction]` | (see note) | Renovation package for price lookup. **Required when `capex` or `annual_maintenance_cost` is omitted.** See schema below. |
+
+> **Lookup rule:** if either `capex` or `annual_maintenance_cost` is absent, both `country` and `renovation_actions` must be provided. You may supply one of the two financial fields explicitly and let the other be computed — the fields are independent.
 
 > **Note:** `output_level` is set by the *frontend tool* based on the user's context (homeowner vs. energy consultant), not entered directly by the end-user.
+
+---
+
+### CAPEX / OPEX automatic lookup
+
+When `capex` and/or `annual_maintenance_cost` are omitted the API resolves them from built-in EU reference data (source: Danish Energy Agency / Eurostat, 2024–2025).
+
+#### `RenovationAction` object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | `string` | ✅ | Renovation work type — must be one of the 10 canonical names below |
+| `area_m2` | `float > 0` | (see note) | Surface area in m² — **required for insulation and windows actions** |
+| `capacity_kw` | `float > 0` | (see note) | Installed system capacity in kW — **required for HVAC, PV, and solar actions** |
+| `material` | `string` | — | Optional material variant (e.g. `EPS`, `MW`, `GW` for wall insulation; `PVC`, `Al`, `Wood` for windows). If omitted, the average price across available material variants is used. |
+
+#### Supported renovation actions
+
+| Action name | Price unit | Required field |
+|---|---|---|
+| `Wall insulation` | €/m² | `area_m2` |
+| `Wall insulation - additional` | €/m² | `area_m2` |
+| `Roof insulation - Accessible` | €/m² | `area_m2` |
+| `Roof insulation - Makeover` | €/m² | `area_m2` |
+| `Floor insulation` | €/m² | `area_m2` |
+| `Windows` | €/m² | `area_m2` |
+| `Air-water Heat Pump` | €/kW + fixed € | `capacity_kw` |
+| `Condensing boiler` | €/kW + fixed € | `capacity_kw` |
+| `PV` | €/kW | `capacity_kw` |
+| `Solar thermal panels` | €/kW + fixed € | `capacity_kw` |
+
+> **OPEX note:** insulation and windows have no annual maintenance cost in the reference data — they contribute €0/year to `annual_maintenance_cost`. HVAC, PV, and solar thermal each carry a flat country-specific annual O&M cost (€/year, not scaled by capacity).
+
+#### Supported countries (27 EU member states)
+
+`Austria`, `Belgium`, `Bulgaria`, `Croatia`, `Cyprus`, `Czech Republic`, `Denmark`, `Estonia`, `Finland`, `France`, `Germany`, `Greece`, `Hungary`, `Ireland`, `Italy`, `Latvia`, `Lithuania`, `Luxembourg`, `Malta`, `Netherlands`, `Poland`, `Portugal`, `Romania`, `Slovakia`, `Slovenia`, `Spain`, `Sweden`
+
+> Both `"Czech Republic"` and `"Czechia"` are accepted. Country names are case-insensitive.
 
 ---
 
@@ -119,6 +161,53 @@ POST /risk-assessment
     "indicators": ["NPV", "IRR", "PBP", "ROI"]
 }
 ```
+
+### Homeowner — CAPEX and OPEX computed from renovation package
+
+```json
+POST /risk-assessment
+{
+    "annual_energy_savings": 27400,
+    "project_lifetime": 20,
+    "output_level": "private",
+    "country": "Italy",
+    "renovation_actions": [
+        { "action": "Wall insulation",    "area_m2": 120 },
+        { "action": "Roof insulation - Accessible", "area_m2": 80 },
+        { "action": "Air-water Heat Pump", "capacity_kw": 8 }
+    ],
+    "schemes": [
+        { "scheme_type": "equity" }
+    ],
+    "indicators": ["NPV", "PBP", "IRR"]
+}
+```
+
+> The API will look up Italian unit prices for each action, sum them into `capex`, and compute the annual heat-pump O&M cost as `annual_maintenance_cost`. Both resolved values are echoed back in `metadata` along with `capex_from_lookup: true` and `opex_from_lookup: true`.
+
+### Homeowner — explicit CAPEX, O&M computed from renovation package
+
+```json
+POST /risk-assessment
+{
+    "capex": 35000,
+    "annual_energy_savings": 22000,
+    "project_lifetime": 20,
+    "output_level": "private",
+    "country": "Germany",
+    "renovation_actions": [
+        { "action": "PV", "capacity_kw": 6 }
+    ],
+    "schemes": [
+        { "scheme_type": "equity" },
+        { "scheme_type": "bank_loan", "loan_amount": 20000, "term_years": 10 }
+    ]
+}
+```
+
+> `capex` is provided explicitly; only `annual_maintenance_cost` is resolved from the lookup.
+
+---
 
 ### ESCO comparison — all three contract variants
 
@@ -270,9 +359,11 @@ New equivalent (incentive fields have no direct equivalent — omit or encode in
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `capex` | float | Echo of input CAPEX |
+| `capex` | float | CAPEX value used in the simulation (either the supplied value or the lookup result) |
+| `capex_from_lookup` | bool | `true` if `capex` was resolved from the reference data; `false` if supplied explicitly |
 | `annual_energy_savings` | float | Echo of input energy savings |
-| `annual_maintenance_cost` | float | Echo of input O&M cost |
+| `annual_maintenance_cost` | float | Annual O&M cost used in the simulation (either supplied or lookup result) |
+| `opex_from_lookup` | bool | `true` if `annual_maintenance_cost` was resolved from the reference data; `false` if supplied explicitly |
 | `project_lifetime` | int | Echo of project lifetime |
 | `n_schemes` | int | Number of schemes evaluated |
 | `scheme_types` | list[str] | List of evaluated `scheme_type` keys (same order as `results`) |
@@ -518,6 +609,10 @@ Use P5–P95 bands everywhere (available in `cashflow_distributions` and `summar
 - [ ] Update response parsing: flat `point_forecasts.NPV` → `results[schemeType].summary.percentiles.NPV.P50`
 - [ ] Update response parsing: flat `percentiles.IRR` → `results[schemeType].summary.percentiles.IRR` (full P5–P95 object)
 - [ ] Update response parsing: flat `probabilities` → `results[schemeType].summary.probabilities`
+- [ ] *(New — optional)* To use automatic CAPEX/OPEX lookup: remove `capex` and/or `annual_maintenance_cost` from the request; add `country` (string) and `renovation_actions` (array) instead
+- [ ] *(New)* Read `metadata.capex_from_lookup` and `metadata.opex_from_lookup` to know which values were resolved automatically — display them to the user if relevant (e.g. "Estimated installation cost: €24,387")
+- [ ] *(New — optional)* To use automatic CAPEX/OPEX lookup: remove `capex` and/or `annual_maintenance_cost` from the request; add `country` (string) and `renovation_actions` (array) instead
+- [ ] *(New)* Read `metadata.capex_from_lookup` and `metadata.opex_from_lookup` to know which values were resolved automatically — display them to the user if relevant (e.g. "Estimated installation cost: €24,387")
 - [ ] Remove `visualizations` response handling — the field no longer exists. The old backend-generated cash flow PNG is replaced by `cashflow_distributions` (raw per-year data) and `kpi_histograms` (histogram bin data). Implement charts client-side following the Visualization Guide above
 - [ ] When multiple schemes are requested, iterate `Object.keys(results)` to display each scheme result
 - [ ] Verify all rate inputs (`fixed_interest`, `p_ESCO`, `royalty_rate`, `share_crowd`, `fee_plat`) are sent as fractions (0.035), not percentages (3.5)
