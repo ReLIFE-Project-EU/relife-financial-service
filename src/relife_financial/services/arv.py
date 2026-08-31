@@ -209,8 +209,11 @@ COUNTRY_CONSUMPTION_THRESHOLDS: dict[str, list[tuple[str, float]]] = {
     "Portugal":          [("A+", 25.0), ("A", 50.0), ("B", 75.0), ("B-", 100.0), ("C", 150.0), ("D", 200.0), ("E", 250.0), ("F", inf)],
     "Czech Republic":    [("A", 50.0), ("B", 75.0), ("C", 100.0), ("D", 150.0), ("E", 200.0), ("F", 250.0), ("G", inf)],
 }
+
 # Greece has no official consumption thresholds; borrow Italy's as approximation.
-COUNTRY_CONSUMPTION_THRESHOLDS["Greece"] = COUNTRY_CONSUMPTION_THRESHOLDS["Italy"]
+if COUNTRY_CONSUMPTION_THRESHOLDS.get("Greece") is None:
+    COUNTRY_CONSUMPTION_THRESHOLDS["Greece"] = COUNTRY_CONSUMPTION_THRESHOLDS["Italy"]
+    COUNTRY_EPC_TO_ITALY["Greece"] = COUNTRY_EPC_TO_ITALY["Italy"]
 
 # Human-readable energy unit note per country (for metadata)
 COUNTRY_SCALE_NOTES: dict[str, str] = {
