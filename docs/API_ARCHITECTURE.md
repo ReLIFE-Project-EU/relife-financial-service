@@ -280,7 +280,6 @@ Both endpoints use **optional JWT authentication** via Keycloak (`OptionalAuthen
 /              ← health/welcome
 /health        ← health check
 /auth/...      ← Keycloak auth routes
-/examples/...  ← example request/response routes
 /risk-assessment  ← Risk Assessment API
 /arv              ← After Renovation Value API
 ```

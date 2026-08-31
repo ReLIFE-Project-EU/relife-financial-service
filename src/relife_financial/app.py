@@ -3,7 +3,7 @@ from importlib.metadata import version
 from fastapi import FastAPI
 
 from relife_financial.config.logging import configure_logging
-from relife_financial.routes import auth, examples, health
+from relife_financial.routes import auth, health
 from relife_financial.routes import risk_assessment, arv
 
 # Dynamically determine the package name
@@ -35,7 +35,6 @@ async def read_root():
 
 app.include_router(health.router)
 app.include_router(auth.router)
-app.include_router(examples.router)
 
 # Risk Assessment endpoint
 app.include_router(risk_assessment.router)
