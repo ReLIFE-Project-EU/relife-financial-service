@@ -1,65 +1,28 @@
 # ReLIFE Financial Service
 
-## Introduction
+This service estimates the financial returns and risks of building renovation investments. Project partners can compare financing options using expected energy savings, renovation costs, and the investment period, and estimate property value after renovation.
 
-A ReLIFE microservice providing financial indicator calculations (NPV, ROI, IRR, II, OPEX) via REST API. The service integrates with Supabase for database operations and storage, and with Keycloak for authentication and authorization.
+## What it provides
 
-## Technology Stack
+- `POST /risk-assessment` compares financing schemes, including own funds, loans, energy service contracts, and crowdfunding. Monte Carlo simulations return net present value, internal rate of return, return on investment, and simple or discounted payback periods, with uncertainty statistics.
+- Investment and annual maintenance costs can be supplied directly or calculated from country-specific reference data and the selected renovation works.
+- `POST /arv` estimates after-renovation value and, when baseline energy consumption is supplied, the change in property value. The model was trained on Greek property data. Valuations for other countries also use this Greek-market model.
 
-- **Python 3.11+**: Core programming language
-- **FastAPI**: Web framework for building APIs with automatic OpenAPI documentation
-- **Uvicorn**: ASGI server for running the FastAPI application
-- **Pydantic**: Data validation and settings management using Python type annotations
-- **Supabase**: Backend-as-a-Service providing database operations and storage
-- **Keycloak**: Identity and access management for authentication and authorization
-- **HTTPX**: HTTP client library for making requests
-- **Rich**: Terminal output formatting and styling
-- **Pytest**: Testing framework with async support
+Output detail ranges from homeowner summaries to distributions for professional analysis.
 
-## Configuration
+See the [risk-assessment guide](docs/RISK_ASSESSMENT_API_FRONTEND_CHANGELOG.md) and [property-valuation guide](docs/ARV_API_FRONTEND_CHANGELOG.md) for inputs and outputs.
 
-All configuration is driven by environment variables:
+## Run locally
 
-| Category     | Variable                 | Description                                       | Default Value                                        |
-| ------------ | ------------------------ | ------------------------------------------------- | ---------------------------------------------------- |
-| **Server**   | `API_HOST`               | Host address for the API server                   | `0.0.0.0`                                            |
-|              | `API_PORT`               | Port for the API server                           | `9090`                                               |
-| **Supabase** | `SUPABASE_URL`           | URL of the Supabase instance                      | -                                                    |
-|              | `SUPABASE_KEY`           | Service role key with admin privileges            | -                                                    |
-| **Keycloak** | `KEYCLOAK_CLIENT_ID`     | Client ID for the application in Keycloak         | -                                                    |
-|              | `KEYCLOAK_CLIENT_SECRET` | Client secret for the application in Keycloak     | -                                                    |
-|              | `KEYCLOAK_REALM_URL`     | Base URL of the Keycloak realm for authentication | `https://relife-identity.test.ctic.es/realms/relife` |
-| **Roles**    | `ADMIN_ROLE_NAME`        | Name of the admin role used for permission checks | `relife_admin`                                       |
-| **Storage**  | `BUCKET_NAME`            | Name of the default storage bucket in Supabase    | `default_relife_bucket`                              |
-
-> [!WARNING]
-> * The `SUPABASE_KEY` uses the service role key that bypasses Row Level Security (RLS) policies. This should **never** be exposed to clients.
-> * `KEYCLOAK_CLIENT_SECRET` is sensitive and should be properly secured in production environments.
-
-## Authentication Integration Validation
-
-The service includes a validation script to test authentication integration with remote Supabase and Keycloak instances. This tool helps you verify your configuration and troubleshoot authentication issues.
-
-### Usage
+Requires Python 3.11 and `uv`. From the repository root:
 
 ```bash
-uv run validate-supabase --email <your-email> --auth-method <method>
+uv sync --frozen
+uv run --frozen run-service
 ```
 
-### Authentication Methods
+Open [API documentation](http://localhost:9090/docs); `GET /health` checks availability. Set `API_HOST` and `API_PORT` to override `0.0.0.0:9090`.
 
-| Method            | Description                                                    | Use Case                                    |
-| ----------------- | -------------------------------------------------------------- | ------------------------------------------- |
-| `supabase`        | Email/password authentication via Supabase                     | Testing direct Supabase user authentication |
-| `keycloak-user`   | Username/password via Keycloak (Resource Owner Password Grant) | Testing Keycloak user credentials           |
-| `keycloak-client` | Client credentials via Keycloak (Client Credentials Grant)     | Testing service-to-service authentication   |
+Calculation requests require `SUPABASE_URL`, `SUPABASE_KEY`, `KEYCLOAK_CLIENT_ID`, and `KEYCLOAK_CLIENT_SECRET` in the environment, even without an authentication token. Keep credentials server-side. See [configuration](src/relife_financial/config/settings.py) for authentication defaults.
 
-### Validation Process
-
-The script performs an end-to-end authentication validation:
-
-1. **Authentication**: Authenticate using the specified method and credentials
-2. **Server Startup**: Launches a temporary API server instance
-3. **Endpoint Verification**: Tests the `/whoami` endpoint with the obtained token
-4. **User Information**: Displays authenticated user details and associated roles
-5. **Cleanup**: Automatically shuts down the temporary server
+Run tests with `uv run --frozen pytest`. Licensed under [EUPL-1.2](LICENSE).
