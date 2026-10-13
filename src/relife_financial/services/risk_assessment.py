@@ -5,6 +5,7 @@ Orchestrates the Monte Carlo simulation for all requested financing schemes
 and builds the response based on the output_level.
 """
 
+import asyncio
 import math
 import sys
 from pathlib import Path
@@ -110,7 +111,10 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
 
     # ── Run simulation ────────────────────────────────────────────────────────
     try:
-        raw_results = get_kpi_results(
+        # CPU-bound: run it in a worker thread so the event loop keeps serving
+        # other requests (including their auth checks) meanwhile.
+        raw_results = await asyncio.to_thread(
+            get_kpi_results,
             capex=capex,
             annual_energy_savings=request.annual_energy_savings,
             annual_maintenace_cost=opex,
