@@ -93,7 +93,7 @@ def _load_capex() -> None:
         _capex_countries.add(country_norm)
         material = row[4]
         price_m2 = row[11]    # Price [€/m²]
-        price_fixed = row[12]  # Price [€]  (fixed installation cost)
+        price_fixed = row[12]  # Price [€]  (price of the listed unit: Power × Price [€/kW])
         price_kw = row[13]     # Price [€/kW]
         entry: dict = {
             "material":    str(material) if material is not None else None,
@@ -223,11 +223,11 @@ def compute_capex(country: str, actions: list) -> float:
         else:  # capacity-based
             if act.capacity_kw is None:
                 raise ValueError(f"capacity_kw is required for action '{action_name}'.")
-            fixed_prices = [r["price_fixed"] for r in candidates if r["price_fixed"] is not None]
-            kw_prices = [r["price_kw"] for r in candidates if r["price_kw"] is not None]
-            price_fixed = statistics.mean(fixed_prices) if fixed_prices else 0.0
-            price_kw = statistics.mean(kw_prices) if kw_prices else 0.0
-            total += price_fixed + price_kw * act.capacity_kw
+            kw_prices = [r["price_kw"] for r in candidates if r["price_kw"]]
+            if kw_prices:
+                total += statistics.mean(kw_prices) * act.capacity_kw
+            else:  # Only a unit price is listed (Slovakia's condensing boiler)
+                total += statistics.mean(r["price_fixed"] for r in candidates)
 
     return total
 

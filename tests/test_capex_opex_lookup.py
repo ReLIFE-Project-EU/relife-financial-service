@@ -87,15 +87,14 @@ def test_capex_windows_austria():
 # ---------------------------------------------------------------------------
 
 def test_capex_heat_pump_austria_7kw():
-    """Doc example: Austria heat pump 7 kW ≈ €24 386."""
+    """Sheet row: 7 kW at €1,741.91/kW."""
     result = compute_capex("Austria", [_Action("Air-water Heat Pump", capacity_kw=7.0)])
-    assert pytest.approx(result, rel=1e-3) == 24386.74
+    assert pytest.approx(result, rel=1e-3) == 12193.37
 
 
 def test_capex_heat_pump_scales_with_capacity():
     result_5 = compute_capex("Austria", [_Action("Air-water Heat Pump", capacity_kw=5.0)])
     result_10 = compute_capex("Austria", [_Action("Air-water Heat Pump", capacity_kw=10.0)])
-    # Non-linear due to fixed cost, but larger capacity must cost more
     assert result_10 > result_5
 
 
@@ -109,6 +108,12 @@ def test_capex_pv_austria():
 def test_capex_condensing_boiler_austria():
     result = compute_capex("Austria", [_Action("Condensing boiler", capacity_kw=14.0)])
     assert result > 0
+
+
+def test_capex_slovakia_condensing_boiler_uses_unit_price():
+    """Slovakia's row lists only a €1,725 unit price, no €/kW."""
+    for kw in (10.0, 30.0):
+        assert compute_capex("Slovakia", [_Action("Condensing boiler", capacity_kw=kw)]) == 1725.0
 
 
 def test_capex_solar_thermal_austria():

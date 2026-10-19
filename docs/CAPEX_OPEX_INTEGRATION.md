@@ -27,7 +27,7 @@
 | E | Material | Insulation material (EPS / MW / GW) or window frame (PVC / Al / Wood); `None` for HVAC |
 | F | Thickness [cm] | Insulation thickness — context only, not needed for lookup |
 | L | Price [€/m²] | Used for insulation and windows |
-| M | Price [€] | Fixed installation cost for HVAC / PV / Solar; occasionally set for a few PV rows |
+| M | Price [€] | Price of the listed unit (Power × Price [€/kW]). Used only when a row has no €/kW price |
 | N | Price [€/kW] | Capacity-based cost for HVAC / PV / Solar |
 
 ### The 10 renovation actions (canonical names — exact string match required)
@@ -40,21 +40,21 @@
 | 4 | `Roof insulation - Makeover` | €/m² | `area_m2` |
 | 5 | `Floor insulation` | €/m² | `area_m2` |
 | 6 | `Windows` | €/m² | `area_m2` |
-| 7 | `Air-water Heat Pump` | €/kW + fixed € | `capacity_kw` |
-| 8 | `Condensing boiler` | €/kW + fixed € | `capacity_kw` |
-| 9 | `PV` | €/kW (+ fixed € for 3 countries) | `capacity_kw` |
-| 10 | `Solar thermal panels` | €/kW + fixed € | `capacity_kw` |
+| 7 | `Air-water Heat Pump` | €/kW | `capacity_kw` |
+| 8 | `Condensing boiler` | €/kW | `capacity_kw` |
+| 9 | `PV` | €/kW | `capacity_kw` |
+| 10 | `Solar thermal panels` | €/kW | `capacity_kw` |
 
 ### CAPEX computation per action
 
 ```
 area-based:     capex_action = Price[€/m²] × area_m2
-capacity-based: capex_action = Price[€] + Price[€/kW] × capacity_kw
+capacity-based: capex_action = Price[€/kW] × capacity_kw
 ```
 
-For capacity-based actions, `Price[€]` (fixed installation cost) and `Price[€/kW]` (capacity
-cost) must **both** be summed. At typical residential sizes the fixed cost dominates — e.g.
-Austria Heat Pump: €12,193 fixed + €1,742/kW × 7 kW ≈ €24,386 total.
+The sheet computes `Price[€/kW]` as `Price[€]` / `Power[kW]`, so `Price[€]` is the price of the
+whole unit and is not added on top. A 7 kW heat pump in Austria costs €1,741.91 × 7 = €12,193.
+Slovakia's condensing boiler lists only a €1,725 unit price, which is used as is.
 
 **Total CAPEX** = sum of `capex_action` across all selected renovation actions.
 
@@ -259,7 +259,7 @@ show the user what values were actually used.
 |---|---|---|---|
 | 1 | Material ambiguity | ✅ confirmed | Average across all materials for that country × action |
 | 2 | Mixed overrides allowed | ✅ confirmed | Yes — user may supply `capex` but let OPEX be computed, or vice versa |
-| 3 | Fixed + capacity cost for HVAC | ✅ confirmed | Both `Price[€]` and `Price[€/kW] × kW` must be summed |
+| 3 | Capacity cost for HVAC | ✅ corrected (#12) | `Price[€/kW] × kW`. `Price[€]` is the unit total, not a fixed fee |
 | 4 | OPEX scaling | ✅ confirmed | Flat annual cost — no scaling by capacity (data doesn't support it) |
 | 5 | Country field validation | ⚠️ to confirm | Enum of 27 vs. free string with normalisation |
 
