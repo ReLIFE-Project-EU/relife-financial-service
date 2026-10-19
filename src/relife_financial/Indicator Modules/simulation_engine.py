@@ -774,6 +774,36 @@ SCHEME_FAMILY: dict = {
 
 _LOAN_ROUNDING_EUR = 1.0  # A loan this close to capex covers all of it (whole-euro rounding)
 
+# Schemes whose remaining balance is repaid in the last simulated year when term_years > project_lifetime
+REPAID_AT_END_SCHEMES = {
+    "bank_loan", "green_bond_loan", "green_bond_bullet", "on_bill",
+    "epc_guaranteed_savings", "lending_crowdfunding",
+}
+
+
+def _financed_amount(details: dict, key: str, ctx: dict) -> float:
+    """Amount raised to fund capex; capped at capex, so it cannot exceed it beyond whole-euro rounding."""
+    amount = float(details[key])
+    if abs(ctx["capex"] - amount) < _LOAN_ROUNDING_EUR:
+        amount = ctx["capex"]
+    _ensure(amount <= ctx["capex"], f"{key} cannot exceed capex.", SchemeConfigurationError)
+    return amount
+
+
+def _scheme_warnings(scheme_type: str, base_inputs: dict, project_lifetime: int) -> list:
+    """Notes on modelling assumptions that change a scheme's results, for display alongside them."""
+    warnings = []
+    term_years = base_inputs.get("term_years", 0)
+    if scheme_type in REPAID_AT_END_SCHEMES and term_years > project_lifetime:
+        warnings.append({
+            "code": "balance_repaid_at_end",
+            "message": (
+                f"The {term_years}-year term is longer than the {project_lifetime}-year project lifetime; "
+                f"the balance still owed is repaid in year {project_lifetime}."
+            ),
+        })
+    return warnings
+
 
 def _scheme_builder(scheme_type: str, details: dict, ctx: dict) -> dict:
     """Build base_inputs dict for a scheme from context and user-supplied details."""
@@ -790,17 +820,13 @@ def _scheme_builder(scheme_type: str, details: dict, ctx: dict) -> dict:
         return common
 
     if scheme_type == "bank_loan":
-        loan_amount = float(details["loan_amount"])
-        if abs(ctx["capex"] - loan_amount) < _LOAN_ROUNDING_EUR:
-            loan_amount = ctx["capex"]
-        _ensure(loan_amount <= ctx["capex"], "loan_amount cannot exceed capex.", SchemeConfigurationError)
-        return {**common, "loan_amount": loan_amount, "loan_interest_rate": None, "term_years": int(details["term_years"])}
+        return {**common, "loan_amount": _financed_amount(details, "loan_amount", ctx), "loan_interest_rate": None, "term_years": int(details["term_years"])}
 
     if scheme_type == "green_bond_loan":
-        return {**common, "gb_proceeds": float(details["gb_proceeds"]), "term_years": int(details["term_years"]), "fixed_interest": float(details["fixed_interest"]), "OM_green": float(details["OM_green"])}
+        return {**common, "gb_proceeds": _financed_amount(details, "gb_proceeds", ctx), "term_years": int(details["term_years"]), "fixed_interest": float(details["fixed_interest"]), "OM_green": float(details["OM_green"])}
 
     if scheme_type == "green_bond_bullet":
-        return {**common, "gb_proceeds": float(details["gb_proceeds"]), "term_years": int(details["term_years"]), "fixed_interest": float(details["fixed_interest"]), "OM_green": float(details["OM_green"])}
+        return {**common, "gb_proceeds": _financed_amount(details, "gb_proceeds", ctx), "term_years": int(details["term_years"]), "fixed_interest": float(details["fixed_interest"]), "OM_green": float(details["OM_green"])}
 
     if scheme_type == "on_bill":
         return {**common, "term_years": int(details["term_years"]), "fixed_interest": float(details["fixed_interest"])}
@@ -832,10 +858,10 @@ def _scheme_builder(scheme_type: str, details: dict, ctx: dict) -> dict:
         return {**common, "loan_interest_rate": None, "term_years": int(details["term_years"]), "gs": float(details["gs"])}
 
     if scheme_type == "lending_crowdfunding":
-        return {**common, "loan_crowd": float(details["loan_crowd"]), "fixed_interest": float(details["fixed_interest"]), "term_years": int(details["term_years"]), "fee_plat": float(details["fee_plat"])}
+        return {**common, "loan_crowd": _financed_amount(details, "loan_crowd", ctx), "fixed_interest": float(details["fixed_interest"]), "term_years": int(details["term_years"]), "fee_plat": float(details["fee_plat"])}
 
     if scheme_type == "royalty_crowdfunding":
-        return {**common, "loan_crowd": float(details["loan_crowd"]), "royalty_rate": float(details["royalty_rate"]), "term_years": int(details["term_years"]), "fee_plat": float(details["fee_plat"])}
+        return {**common, "loan_crowd": _financed_amount(details, "loan_crowd", ctx), "royalty_rate": float(details["royalty_rate"]), "term_years": int(details["term_years"]), "fee_plat": float(details["fee_plat"])}
 
     if scheme_type == "equity_crowdfunding":
         return {**common, "equity_crowd": float(details["equity_crowd"]), "share_crowd": float(details["share_crowd"]), "fee_plat": float(details["fee_plat"])}
@@ -931,7 +957,7 @@ def get_kpi_results(
     -------
     dict
         Keys are scheme_type strings. Each value contains:
-        scheme_id, scheme_family, summary, kpi_histograms, cashflow_distributions.
+        scheme_id, scheme_family, warnings, summary, kpi_histograms, cashflow_distributions.
     """
     _ensure(capex > 0,                   "capex must be positive.")
     _ensure(annual_energy_savings > 0,   "annual_energy_savings must be positive.")
@@ -1069,6 +1095,7 @@ def get_kpi_results(
         results[scheme_type] = {
             "scheme_id":     scheme_def["scheme_id"],
             "scheme_family": scheme_family,
+            "warnings":      _scheme_warnings(scheme_type, base_inputs, T),
             "summary": {
                 "percentiles": {
                     "IRR":             pct(irr),
