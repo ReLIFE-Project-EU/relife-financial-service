@@ -245,8 +245,10 @@ def build_market_distributions(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def IRR(flows: list) -> float:
-    """Internal Rate of Return."""
+    """Internal Rate of Return; +inf when no year is negative."""
     _validate_flows(flows)
+    if min(flows) >= 0:
+        return np.inf
     try:
         return npf.irr(flows)
     except Exception as exc:
@@ -263,64 +265,45 @@ def NPV(d_r: float, flows: list) -> float:
         raise SimulationComputationError(f"Failed to compute NPV: {exc}") from exc
 
 
-def PBP(flows: list, loan: bool = False, loan_term: int = 0) -> float:
+def _payback_period(flows: list, d_r: float = 0.0, max_years: int = 100) -> float:
+    """Year from which the cumulative (discounted) cash flow stays non-negative, linearly interpolated.
+
+    0 if it never goes negative; NaN if it is still negative after max_years,
+    repeating the last flow past the horizon as before.
+    """
+    discounted = [float(cf) * (1 + d_r) ** -t for t, cf in enumerate(flows)]
+    cumulative = np.cumsum(discounted)
+    negative_years = np.flatnonzero(cumulative < 0)
+    if negative_years.size == 0:
+        return 0.0
+    year = int(negative_years[-1])
+    total = float(cumulative[year])
+    while year < max_years:
+        cf = discounted[year + 1] if year + 1 < len(flows) else float(flows[-1]) * (1 + d_r) ** -(year + 1)
+        if total + cf >= 0:
+            return year - total / cf
+        total += cf
+        year += 1
+    return np.nan
+
+
+def PBP(flows: list) -> float:
     """Simple (undiscounted) Payback Period in years, linearly interpolated."""
     _validate_flows(flows)
     try:
-        investment = float(flows[0]) * -1
-        if investment <= 0:
-            return np.nan
-
-        total = 0.0
-        previous_total = 0.0
-        years = 0
-        max_years = 100
-
-        for i in range(1, max_years + 1):
-            fl = float(flows[i]) if i < len(flows) else float(flows[-1])
-            previous_total = total
-            total += fl
-            years += 1
-            if total >= investment:
-                break
-        else:
-            return np.nan
-
-        remaining = investment - previous_total
-        current_year_cf = total - previous_total
-        pbp = float(years - 1) + (float(remaining) / float(current_year_cf)) if current_year_cf != 0 else float(years)
-
-        if loan and not np.isnan(pbp) and pbp < loan_term:
-            pbp = float(loan_term)
-        return pbp
+        return _payback_period(flows)
     except FinancialSimulationError:
         raise
     except Exception as exc:
         raise SimulationComputationError(f"Failed to compute PBP: {exc}") from exc
 
 
-def DPP(
-    d_r: float,
-    n: int,
-    flows: list,
-    loan: bool = False,
-    loan_term: int = 0,
-    max_years: int = 100,
-) -> float:
+def DPP(d_r: float, n: int, flows: list, max_years: int = 100) -> float:
     """Discounted Payback Period."""
     _validate_finite_number("discount rate", d_r)
     _validate_flows(flows)
     try:
-        discounted = [flows[0]]
-        for i in range(1, max_years + 1):
-            cf = float(flows[i]) if i < len(flows) else float(flows[-1])
-            discounted.append(cf * np.power(1 + float(d_r), -i))
-            if sum(discounted) >= 0:
-                break
-        dpp = PBP(discounted)
-        if loan and not np.isnan(dpp) and dpp < loan_term:
-            dpp = float(loan_term)
-        return dpp
+        return _payback_period(flows, float(d_r), max_years)
     except FinancialSimulationError:
         raise
     except Exception as exc:
@@ -331,7 +314,7 @@ def ROI(flows: list) -> float:
     """Return on Investment: (net profit - investment) / investment."""
     _validate_flows(flows)
     initial_investment = -float(flows[0])
-    if initial_investment == 0:
+    if initial_investment <= 0:
         return np.nan
     net_profit = sum(float(v) for v in flows[1:])
     return (net_profit - initial_investment) / initial_investment
@@ -773,6 +756,9 @@ SCHEME_FAMILY: dict = {
 }
 
 
+_LOAN_ROUNDING_EUR = 1.0  # A loan this close to capex covers all of it (whole-euro rounding)
+
+
 def _scheme_builder(scheme_type: str, details: dict, ctx: dict) -> dict:
     """Build base_inputs dict for a scheme from context and user-supplied details."""
     common = {
@@ -788,7 +774,11 @@ def _scheme_builder(scheme_type: str, details: dict, ctx: dict) -> dict:
         return common
 
     if scheme_type == "bank_loan":
-        return {**common, "loan_amount": float(details["loan_amount"]), "loan_interest_rate": None, "term_years": int(details["term_years"])}
+        loan_amount = float(details["loan_amount"])
+        if abs(ctx["capex"] - loan_amount) < _LOAN_ROUNDING_EUR:
+            loan_amount = ctx["capex"]
+        _ensure(loan_amount <= ctx["capex"], "loan_amount cannot exceed capex.", SchemeConfigurationError)
+        return {**common, "loan_amount": loan_amount, "loan_interest_rate": None, "term_years": int(details["term_years"])}
 
     if scheme_type == "green_bond_loan":
         return {**common, "gb_proceeds": float(details["gb_proceeds"]), "term_years": int(details["term_years"]), "fixed_interest": float(details["fixed_interest"]), "OM_green": float(details["OM_green"])}
@@ -1022,9 +1012,8 @@ def get_kpi_results(
 
                 irr[i]         = IRR(flows)
                 npv_arr[i]     = NPV(float(disc[i, 0]), flows)
-                has_term       = "term_years" in inputs_i and inputs_i["term_years"]
-                pbp_arr[i]     = PBP(flows, loan=bool(has_term), loan_term=int(inputs_i.get("term_years", 0)))
-                dpp_arr[i]     = DPP(float(disc[i, 0]), T, flows, loan=bool(has_term), loan_term=int(inputs_i.get("term_years", 0)))
+                pbp_arr[i]     = PBP(flows)
+                dpp_arr[i]     = DPP(float(disc[i, 0]), T, flows)
                 roi_arr[i]     = ROI(flows)
                 total_repayment[i] = float(np.sum(np.asarray(outflows_i[1:], dtype=float)))
 
@@ -1044,7 +1033,15 @@ def get_kpi_results(
         disc_target = float(np.nanmedian(disc[:, 0]))
 
         def pct(a, qs=(5, 10, 25, 50, 75, 90, 95)):
-            return {f"P{q}": float(np.nanpercentile(a, q)) for q in qs}
+            # +inf (IRR with no negative year) ranks above every value; percentiles landing on it are None
+            a = np.sort(np.asarray(a, dtype=float))
+            a = a[~np.isnan(a)]
+            finite = a[np.isfinite(a)]
+            positions = {q: q / 100 * (a.size - 1) for q in qs}
+            return {
+                f"P{q}": float(np.interp(h, np.arange(finite.size), finite)) if h <= finite.size - 1 else None
+                for q, h in positions.items()
+            }
 
         def pct_by_year(paths, qs=(5, 10, 25, 50, 75, 90, 95)):
             arr = np.asarray(paths, dtype=float)
