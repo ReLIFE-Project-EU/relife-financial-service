@@ -329,6 +329,11 @@ def ROI(flows: list) -> float:
 # are expressed as fractions (e.g. 0.05 for 5%).
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _balance_due_at_end(t: int, project_lifetime: int, term_years: int, outstanding: float) -> float:
+    """Balance still owed, paid in the last simulated year when the loan outlasts the simulation."""
+    return outstanding if t == project_lifetime and term_years > project_lifetime else 0.0
+
+
 def cash_flows(
     capex: float,
     annual_energy_savings: float,
@@ -384,6 +389,7 @@ def cash_flows_with_loan(
                 outstanding -= principal
             else:
                 D_t = 0.0
+            D_t += _balance_due_at_end(year + 1, project_lifetime, term_years, outstanding)
             inflows.append(revenue)
             outflows.append(om_t + D_t)
             flows.append(revenue - om_t - D_t)
@@ -423,6 +429,7 @@ def cash_flows_green_bond_loan(
                 outstanding -= principal
             else:
                 D_t = 0.0
+            D_t += _balance_due_at_end(t, project_lifetime, term_years, outstanding)
             inflows.append(revenue)
             outflows.append(om_t + om_green_t + D_t)
             flows.append(revenue - om_t - om_green_t - D_t)
@@ -463,6 +470,7 @@ def cash_flows_green_bond_bullet(
                 outstanding = 0.0
             else:
                 D_t = 0.0
+            D_t += _balance_due_at_end(t, project_lifetime, term_years, outstanding)
             inflows.append(revenue)
             outflows.append(om_t + om_green_t + D_t)
             flows.append(revenue - om_t - om_green_t - D_t)
@@ -498,6 +506,7 @@ def cash_flows_on_bill_financing(
             outstanding -= principal
         else:
             D_t = 0.0
+        D_t += _balance_due_at_end(t, project_lifetime, term_years, outstanding)
         inflows.append(revenue)
         outflows.append(om_t + D_t)
         flows.append(revenue - om_t - D_t)
@@ -613,6 +622,7 @@ def cash_flows_epc_guaranteed_savings(
             outstanding -= principal
         else:
             D_t = 0.0
+        D_t += _balance_due_at_end(t, project_lifetime, term_years, outstanding)
         comp = max(0.0, gs_t - AS_t)
         inflows.append(AS_t + comp)
         outflows.append(om_t + D_t)
@@ -644,13 +654,19 @@ def cash_flows_lending_crowdfunding(
         debt_payment = loan_crowd / term_years
     else:
         debt_payment = 0.0
+    outstanding = loan_crowd
     cumulative_infl = 1.0
     for t in range(1, project_lifetime + 1):
         idx = t - 1
         cumulative_infl *= (1 + inflation_rate[idx] / 100.0)
         om_t = annual_maintenace_cost * cumulative_infl
         AS_t = annual_energy_savings * electricity_prices[idx]
-        D_t = debt_payment if t <= term_years else 0.0
+        if t <= term_years:
+            D_t = debt_payment
+            outstanding -= debt_payment - outstanding * r
+        else:
+            D_t = 0.0
+        D_t += _balance_due_at_end(t, project_lifetime, term_years, outstanding)
         inflows.append(AS_t)
         outflows.append(om_t + D_t)
         flows.append(AS_t - om_t - D_t)
