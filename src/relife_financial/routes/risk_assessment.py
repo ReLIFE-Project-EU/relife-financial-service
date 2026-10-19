@@ -104,6 +104,7 @@ async def assess_project_risk(
             "equity": {
                 "scheme_id": 1,
                 "scheme_family": "self_financed",
+                "warnings": [],
                 "summary": {
                     "percentiles": {"IRR": {"P50": 0.084}, "NPV": {"P50": 15400}},
                     "probabilities": {"Pr(NPV > 0)": 0.952},

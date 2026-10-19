@@ -359,6 +359,8 @@ class RiskAssessmentResponse(BaseModel):
 
     results is keyed by scheme_type and contains:
       - scheme_id, scheme_family
+      - warnings: list of {code, message} notes on assumptions affecting the results
+        (e.g. "balance_repaid_at_end" when term_years exceeds project_lifetime)
       - summary: percentiles (P5-P95) + probabilities + n_sims + disc_target_used
       - cashflow_distributions: per-year P5-P95 fan charts (private and above)
       - kpi_histograms: feasible/infeasible histograms (professional and above)
@@ -381,6 +383,7 @@ class RiskAssessmentResponse(BaseModel):
                         "equity": {
                             "scheme_id": 1,
                             "scheme_family": "self_financed",
+                            "warnings": [],
                             "summary": {
                                 "percentiles": {
                                     "IRR": {"P5": 0.02, "P10": 0.03, "P50": 0.084, "P90": 0.14, "P95": 0.16},
