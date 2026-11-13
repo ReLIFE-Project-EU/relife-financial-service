@@ -122,6 +122,7 @@ async def perform_risk_assessment(request: RiskAssessmentRequest) -> RiskAssessm
             schemes=schemes,
             n_sims=10000,
             seed=42,
+            electricity_tariff_eur_per_kwh=request.electricity_tariff_eur_per_kwh,
         )
     except SchemeConfigurationError as exc:
         raise ValueError(str(exc)) from exc

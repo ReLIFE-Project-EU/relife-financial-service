@@ -64,3 +64,19 @@ def test_loan_longer_than_simulation_is_fully_repaid(scheme_type, details, princ
     inputs = prepare_cashflow_inputs(scheme["base_inputs"], zeros, zeros, loan_interest_rate=zeros)
     _, _, outflows = scheme["cashflow_function"](**inputs)
     assert sum(outflows[1:]) == pytest.approx(principal)
+
+
+def test_tariff_scales_inflow_percentiles_without_changing_other_market_inputs():
+    project = {
+        "capex": 60000, "annual_energy_savings": 27400, "annual_maintenace_cost": 2000,
+        "project_lifetime": 30, "schemes": [("equity", {})], "n_sims": 64,
+    }
+    legacy = get_kpi_results(**project)["equity"]["cashflow_distributions"]
+    override = get_kpi_results(**project, electricity_tariff_eur_per_kwh=0.30)["equity"]["cashflow_distributions"]
+
+    # All years (including padding after year 18) and risk bands scale together.
+    for percentile, inflows in legacy["inflows"].items():
+        assert override["inflows"][percentile] == pytest.approx(
+            [value * 0.30 / 0.246 for value in inflows], rel=1e-12,
+        )
+    assert override["outflows"] == legacy["outflows"]
