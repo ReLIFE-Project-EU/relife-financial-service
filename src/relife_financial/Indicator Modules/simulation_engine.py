@@ -906,6 +906,7 @@ def get_kpi_results(
     schemes: list,
     n_sims: int = 10000,
     seed: int = 42,
+    electricity_tariff_eur_per_kwh: float | None = None,
 ) -> dict:
     """
     Run Monte Carlo KPI simulation for all requested financing schemes.
@@ -926,6 +927,9 @@ def get_kpi_results(
         Number of Monte Carlo draws (default 10 000).
     seed : int
         Random seed for reproducibility.
+    electricity_tariff_eur_per_kwh : float or None
+        Optional positive, finite first-year median price (EUR/kWh). Scales the
+        existing electricity paths together; None retains the legacy calibration.
 
     Returns
     -------
@@ -938,6 +942,9 @@ def get_kpi_results(
     _ensure(annual_maintenace_cost >= 0, "annual_maintenace_cost must be non-negative.")
     _ensure(1 <= project_lifetime <= 30, "project_lifetime must be between 1 and 30.")
     _ensure(0 < n_sims <= 1_000_000,     "n_sims must be between 1 and 1,000,000.")
+    if electricity_tariff_eur_per_kwh is not None:
+        _validate_finite_number("electricity_tariff_eur_per_kwh", electricity_tariff_eur_per_kwh)
+        _ensure(electricity_tariff_eur_per_kwh > 0, "electricity_tariff_eur_per_kwh must be positive.")
 
     scheme_definitions = create_scheme_definitions(
         capex=capex,
@@ -962,6 +969,13 @@ def get_kpi_results(
         "moderate":    pad_to_length([0.246,0.254,0.262,0.270,0.278,0.286,0.294,0.302,0.310,0.318, 0.326,0.335,0.343,0.351,0.359,0.367,0.375,0.383], T),
         "optimistic":  pad_to_length([0.271,0.279,0.287,0.295,0.303,0.311,0.319,0.327,0.335,0.343, 0.351,0.360,0.368,0.376,0.384,0.392,0.400,0.408], T),
     }
+    if electricity_tariff_eur_per_kwh is not None:
+        # Anchor year-one P50 while retaining relative growth and price uncertainty.
+        scale = electricity_tariff_eur_per_kwh / electricity_prices_data["moderate"][0]
+        electricity_prices_data = {
+            scenario: [price * scale for price in prices]
+            for scenario, prices in electricity_prices_data.items()
+        }
     interest_rate_data = {
         "optimistic":  pad_to_length([2.5,2.8,3.0,3.0,2.9,2.8,2.8,2.7,2.7,2.7, 2.6,2.6,2.6,2.5,2.5,2.5,2.5,2.5,2.5,2.5, 2.5,2.5,2.5,2.5,2.5,2.5,2.5,2.5,2.5,2.5], T),
         "moderate":    pad_to_length([3.5,3.8,4.0,4.0,3.9,3.8,3.8,3.7,3.7,3.7, 3.6,3.6,3.6,3.5,3.5,3.5,3.5,3.5,3.5,3.5, 3.5,3.5,3.5,3.5,3.5,3.5,3.5,3.5,3.5,3.5], T),

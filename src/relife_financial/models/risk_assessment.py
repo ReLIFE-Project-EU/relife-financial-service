@@ -237,6 +237,15 @@ class RiskAssessmentRequest(BaseModel):
         description="Base annual energy savings estimate (kWh/year). Treated stochastically (P10 = 0.70x).",
         examples=[27400],
     )
+    electricity_tariff_eur_per_kwh: Optional[float] = Field(
+        default=None, gt=0, allow_inf_nan=False,
+        description=(
+            "Optional first-year median electricity price (EUR/kWh). "
+            "Rescales all existing electricity price scenarios, preserving their relative "
+            "growth and uncertainty. Omit or set to null to retain the existing prices."
+        ),
+        examples=[0.30],
+    )
     annual_maintenance_cost: Optional[float] = Field(
         default=None, ge=0,
         description=(
