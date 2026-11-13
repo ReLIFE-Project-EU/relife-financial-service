@@ -57,6 +57,7 @@ def _filter_by_output_level(scheme_data: Dict[str, Any], output_level: OutputLev
     filtered: Dict[str, Any] = {
         "scheme_id":     scheme_data["scheme_id"],
         "scheme_family": scheme_data["scheme_family"],
+        "warnings":      scheme_data["warnings"],
         "summary":       scheme_data["summary"],
         # Cash-flow fan charts included for all output levels (needed for timeline viz)
         "cashflow_distributions": scheme_data["cashflow_distributions"],
